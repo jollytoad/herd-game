@@ -1,16 +1,34 @@
 {
   "tasks": {
-    "dev": "deno run --allow-net --allow-env=PORT,OPENAI_API_KEY,OPENAI_BASE_URL,LLM_MODEL --unstable-kv --watch main.ts",
+    "dev": {
+      "description": "Dev server with OpenTelemetry (console exporter \u2014 spans/metrics/logs print to stderr)",
+      "command": "OTEL_DENO=true OTEL_EXPORTER_OTLP_PROTOCOL=console deno run --allow-net --allow-env=PORT,OPENAI_API_KEY,OPENAI_BASE_URL,LLM_MODEL --env-file --unstable-kv --watch main.ts"
+    },
+    "dev:otlp": {
+      "description": "Dev server exporting OTLP to a collector (default localhost:4318) \u2014 pair with `deno task otel`",
+      "command": "OTEL_DENO=true deno run --allow-net --allow-env=PORT,OPENAI_API_KEY,OPENAI_BASE_URL,LLM_MODEL,OTEL_EXPORTER_OTLP_ENDPOINT,OTEL_EXPORTER_OTLP_PROTOCOL,OTEL_EXPORTER_OTLP_HEADERS --env-file --unstable-kv --watch main.ts"
+    },
+    "otel": {
+      "description": "Local LGTM stack (Grafana :3000 admin/admin, Loki, Tempo, Prometheus) + OTLP :4318",
+      "command": "docker run --name lgtm -p 3000:3000 -p 4317:4317 -p 4318:4318 --rm -ti docker.io/grafana/otel-lgtm:latest"
+    },
     "start": "deno run --allow-net --allow-env=PORT,OPENAI_API_KEY,OPENAI_BASE_URL,LLM_MODEL --unstable-kv main.ts",
     "check": "deno check main.ts",
     "ci": "deno fmt --check && deno lint && deno check main.ts"
   },
-  "exclude": [".agents/"],
+  "exclude": [
+    ".agents/"
+  ],
   "imports": {
+    "@opentelemetry/api": "npm:@opentelemetry/api@^1.9.1",
     "zod": "jsr:@zod/zod@4.5.4"
   },
   "lint": {
-    "rules": { "tags": ["recommended"] }
+    "rules": {
+      "tags": [
+        "recommended"
+      ]
+    }
   },
   "fmt": {
     "lineWidth": 100

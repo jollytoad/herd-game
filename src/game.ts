@@ -3,6 +3,7 @@
  *  turns are driven lazily by tickRoom() (called from every SSE loop and
  *  action request) rather than setTimeout, so it works on elastic isolates. */
 
+import { trace } from "@opentelemetry/api";
 import {
   BOT_NAMES,
   getRoom,
@@ -50,20 +51,35 @@ function scheduleBots(
 }
 
 /** Flip to the next question (lobby -> asking, or results/reject -> asking). */
-export async function drawQuestion(code: string): Promise<Room | null> {
-  await ensureDeck(code);
-  return updateRoom(code, (r) => {
-    r.round += 1;
-    r.question = r.deck.shift() ?? "Name something everyone in this room has in common.";
-    r.phase = "asking";
-    r.answers = {};
-    r.rejects = [];
-    r.lastResult = null;
-    r.winners = [];
-    r.judgingToken = null;
-    r.deadline = r.timerSeconds > 0 ? Date.now() + r.timerSeconds * 1000 : null;
-    scheduleBots(r);
-  });
+export function drawQuestion(code: string): Promise<Room | null> {
+  const tracer = trace.getTracer("herd-intelligence.game");
+  return tracer.startActiveSpan(
+    "game.draw_question",
+    { attributes: { "room.code": code } },
+    async (span) => {
+      try {
+        await ensureDeck(code);
+        const room = await updateRoom(code, (r) => {
+          r.round += 1;
+          r.question = r.deck.shift() ?? "Name something everyone in this room has in common.";
+          r.phase = "asking";
+          r.answers = {};
+          r.rejects = [];
+          r.lastResult = null;
+          r.winners = [];
+          r.judgingToken = null;
+          r.deadline = r.timerSeconds > 0 ? Date.now() + r.timerSeconds * 1000 : null;
+          scheduleBots(r);
+        });
+        if (room) {
+          span.setAttributes({ "game.round": room.round, "game.deck_left": room.deck.length });
+        }
+        return room;
+      } finally {
+        span.end();
+      }
+    },
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -99,43 +115,62 @@ export async function maybeEndRound(code: string): Promise<void> {
 
 /** Run the LLM judge and apply the verdict. Only called by the claimer. */
 export async function adjudicate(code: string): Promise<void> {
-  const room = await getRoom(code);
-  if (!room || room.phase !== "judging" || !room.question) return;
+  const tracer = trace.getTracer("herd-intelligence.game");
+  await tracer.startActiveSpan(
+    "game.adjudicate",
+    { attributes: { "room.code": code } },
+    async (span) => {
+      try {
+        const room = await getRoom(code);
+        if (!room || room.phase !== "judging" || !room.question) {
+          span.setAttribute("game.skipped", true);
+          return;
+        }
+        span.setAttribute("game.round", room.round);
 
-  const verdict = await judgeRound(room);
+        const verdict = await judgeRound(room);
+        span.setAttribute("judge.herd_found", verdict.herd_answer !== null);
 
-  await updateRoom(code, (r) => {
-    if (r.phase !== "judging") return;
-    const matched = new Set(verdict.matched_players);
-    r.lastResult = {
-      herd: verdict.herd_answer,
-      commentary: verdict.commentary,
-      answers: r.players.map((p) => ({
-        name: p.name,
-        answer: r.answers[p.id] ?? "(no answer)",
-        inHerd: matched.has(p.id),
-      })),
-    };
-    for (const p of r.players) {
-      if (matched.has(p.id)) {
-        p.cows += 1;
-        p.pinkCow = false; // matching the herd sheds the pink cow
-      } else if (verdict.herd_answer !== null) {
-        p.pinkCow = true; // missed the herd on ANY question -> pink cow
+        let winnerCount = 0;
+        await updateRoom(code, (r) => {
+          if (r.phase !== "judging") return;
+          const matched = new Set(verdict.matched_players);
+          r.lastResult = {
+            herd: verdict.herd_answer,
+            commentary: verdict.commentary,
+            answers: r.players.map((p) => ({
+              name: p.name,
+              answer: r.answers[p.id] ?? "(no answer)",
+              inHerd: matched.has(p.id),
+            })),
+          };
+          for (const p of r.players) {
+            if (matched.has(p.id)) {
+              p.cows += 1;
+              p.pinkCow = false; // matching the herd sheds the pink cow
+            } else if (verdict.herd_answer !== null) {
+              p.pinkCow = true; // missed the herd on ANY question -> pink cow
+            }
+          }
+          r.log.unshift({ round: r.round, question: r.question ?? "", herd: verdict.herd_answer });
+          r.log = r.log.slice(0, 20);
+          r.winners = r.players.filter((p) => p.cows >= WIN_COWS && !p.pinkCow).map((p) => p.id);
+          r.phase = r.winners.length > 0 ? "gameover" : "results";
+          r.question = null;
+          r.answers = {};
+          r.rejects = [];
+          r.deadline = null;
+          r.botDue = {};
+          r.botPending = {};
+          r.judgingToken = null;
+          winnerCount = r.winners.length;
+        });
+        span.setAttribute("game.winners", winnerCount);
+      } finally {
+        span.end();
       }
-    }
-    r.log.unshift({ round: r.round, question: r.question ?? "", herd: verdict.herd_answer });
-    r.log = r.log.slice(0, 20);
-    r.winners = r.players.filter((p) => p.cows >= WIN_COWS && !p.pinkCow).map((p) => p.id);
-    r.phase = r.winners.length > 0 ? "gameover" : "results";
-    r.question = null;
-    r.answers = {};
-    r.rejects = [];
-    r.deadline = null;
-    r.botDue = {};
-    r.botPending = {};
-    r.judgingToken = null;
-  });
+    },
+  );
 }
 
 // ---------------------------------------------------------------------------
