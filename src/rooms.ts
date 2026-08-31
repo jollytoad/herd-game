@@ -49,8 +49,8 @@ export interface Room {
   answers: Record<string, string>;
   rejects: string[]; // player ids who rejected the current question
   deadline: number | null; // epoch ms, asking phase
-  botDue: Record<string, number>; // bot id -> epoch ms it should answer at
-  botPending: Record<string, boolean>; // bot id -> LLM call in flight
+  botDue: Record<string, number>; // bot id -> epoch ms it should reveal its answer
+  botPrepared: Record<string, string>; // bot id -> answer, generated at question flip
   judgingToken: string | null; // set when a request claims adjudication
   round: number;
   lastResult: Judgement | null;
@@ -148,7 +148,7 @@ export async function createRoom(hostName: string): Promise<{ code: string; toke
     rejects: [],
     deadline: null,
     botDue: {},
-    botPending: {},
+    botPrepared: {},
     judgingToken: null,
     round: 0,
     lastResult: null,
@@ -203,7 +203,7 @@ export async function resetGame(code: string): Promise<void> {
     r.rejects = [];
     r.deadline = null;
     r.botDue = {};
-    r.botPending = {};
+    r.botPrepared = {};
     r.judgingToken = null;
     for (const p of r.players) {
       p.cows = 0;

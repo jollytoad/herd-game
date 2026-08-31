@@ -1,7 +1,12 @@
 /** Game flow: phase machine, lazy timers, bot scheduling, adjudication.
  *  All mutations go through rooms.ts's atomic updateRoom. Timers and bot
- *  turns are driven lazily by tickRoom() (called from every SSE loop and
- *  action request) rather than setTimeout, so it works on elastic isolates. */
+ *  answer reveals are driven lazily by tickRoom() (called from every SSE loop
+ *  and action request) rather than setTimeout, so it works on elastic isolates.
+ *
+ *  Latency design: the question flip itself never waits on the LLM. Bot
+ *  answers are generated in one background LLM call right after the flip and
+ *  revealed 1–5s in; until prepared, bots simply haven't answered yet. Deck
+ *  top-ups also run in the background unless the deck is truly empty. */
 
 import { trace } from "@opentelemetry/api";
 import {
@@ -18,39 +23,70 @@ import { botAnswers, generateQuestions, judgeRound } from "./judge.ts";
 
 const DECK_TOPUP = 12;
 
-// ---------------------------------------------------------------------------
-// Deck management
-// ---------------------------------------------------------------------------
-
-async function ensureDeck(code: string): Promise<void> {
-  const room = await getRoom(code);
-  if (!room || room.deck.length >= 3) return;
-  const questions = await generateQuestions(DECK_TOPUP);
-  await updateRoom(code, (r) => {
-    r.deck.push(...questions);
-  });
+/** Register background work with the runtime where possible (Deno Deploy
+ *  terminates detached promises after the response otherwise). No-op locally. */
+function background(p: Promise<unknown>): void {
+  const edge = (globalThis as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } })
+    .EdgeRuntime;
+  edge?.waitUntil?.(p);
 }
 
+/** Bots reveal their prepared answer 1–5s after the question flips. */
 function scheduleBots(
   room: {
     players: Player[];
     deadline: number | null;
     botDue: Record<string, number>;
-    botPending: Record<string, boolean>;
   },
 ) {
   room.botDue = {};
-  room.botPending = {};
-  const slack = room.deadline ? room.deadline - Date.now() - 3000 : 20_000;
-  const window = Math.max(slack, 2_000);
   for (const p of room.players) {
-    if (p.bot) {
-      room.botDue[p.id] = Date.now() + 4_000 + Math.floor(Math.random() * window);
-    }
+    if (!p.bot) continue;
+    let dueAt = Date.now() + (1 + Math.random() * 4) * 1000;
+    // never reveal after the deadline (leave 2s of slack)
+    if (room.deadline) dueAt = Math.min(dueAt, room.deadline - 2_000);
+    room.botDue[p.id] = dueAt;
   }
 }
 
-/** Flip to the next question (lobby -> asking, or results/reject -> asking). */
+// ---------------------------------------------------------------------------
+// Deck management
+// ---------------------------------------------------------------------------
+
+/** Fire-and-forget deck top-up; never blocks a flip. */
+function topUpDeckBackground(code: string): void {
+  background(
+    (async () => {
+      const room = await getRoom(code);
+      if (!room || room.deck.length >= 3) return;
+      const questions = await generateQuestions(DECK_TOPUP);
+      await updateRoom(code, (r) => {
+        r.deck.push(...questions);
+      });
+    })().catch((err) => console.error("background deck top-up failed:", err)),
+  );
+}
+
+/** Generate and store bot answers for the current question in one LLM call. */
+async function precomputeBotAnswers(code: string, room: Room): Promise<void> {
+  const question = room.question ?? "";
+  const bots = room.players.filter((p) => p.bot);
+  if (bots.length === 0) return;
+  const answers = await botAnswers(
+    question,
+    bots.map((p) => ({ id: p.id, personality: p.personality })),
+  );
+  // Guard against racing a reject-flip: only apply if the round didn't change.
+  await updateRoom(code, (r) => {
+    if (r.phase === "asking" && r.round === room.round && r.question === question) {
+      r.botPrepared = answers;
+    }
+  });
+}
+
+/** Flip to the next question (lobby -> asking, or results/reject -> asking).
+ *  Returns after the flip; LLM work (deck top-up, bot answers) runs in the
+ *  background. */
 export function drawQuestion(code: string): Promise<Room | null> {
   const tracer = trace.getTracer("herd-intelligence.game");
   return tracer.startActiveSpan(
@@ -58,8 +94,19 @@ export function drawQuestion(code: string): Promise<Room | null> {
     { attributes: { "room.code": code } },
     async (span) => {
       try {
-        await ensureDeck(code);
-        const room = await updateRoom(code, (r) => {
+        // First flip ever may have an empty deck: we need a question now, so
+        // this one LLM call blocks. Later flips only background-top-up.
+        let room = await getRoom(code);
+        if (room && room.deck.length === 0) {
+          const questions = await generateQuestions(DECK_TOPUP);
+          await updateRoom(code, (r) => {
+            r.deck.push(...questions);
+          });
+        } else if (room && room.deck.length < 3) {
+          topUpDeckBackground(code);
+        }
+
+        room = await updateRoom(code, (r) => {
           r.round += 1;
           r.question = r.deck.shift() ?? "Name something everyone in this room has in common.";
           r.phase = "asking";
@@ -71,10 +118,17 @@ export function drawQuestion(code: string): Promise<Room | null> {
           r.deadline = r.timerSeconds > 0 ? Date.now() + r.timerSeconds * 1000 : null;
           scheduleBots(r);
         });
-        if (room) {
-          span.setAttributes({ "game.round": room.round, "game.deck_left": room.deck.length });
-        }
-        return room;
+        if (!room) return room;
+        span.setAttributes({ "game.round": room.round, "game.deck_left": room.deck.length });
+
+        // Precompute bot answers off the critical path; tickRoom reveals them
+        // once prepared (1–5s in, LLM latency permitting).
+        background(
+          precomputeBotAnswers(code, room).catch((err) =>
+            console.error("background bot answer generation failed:", err)
+          ),
+        );
+        return await getRoom(code);
       } finally {
         span.end();
       }
@@ -161,7 +215,7 @@ export async function adjudicate(code: string): Promise<void> {
           r.rejects = [];
           r.deadline = null;
           r.botDue = {};
-          r.botPending = {};
+          r.botPrepared = {};
           r.judgingToken = null;
           winnerCount = r.winners.length;
         });
@@ -219,7 +273,7 @@ export async function nextRound(code: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Lazy tick: bot turns + round-end detection (drives everything on a 1s SSE loop)
+// Lazy tick: bot reveals + round-end detection (drives everything on a 1s SSE loop)
 // ---------------------------------------------------------------------------
 
 export async function tickRoom(code: string): Promise<void> {
@@ -228,34 +282,23 @@ export async function tickRoom(code: string): Promise<void> {
 
   const now = Date.now();
   const due = room.players.filter((p) =>
-    p.bot && room.answers[p.id] === undefined &&
-    !room.botPending[p.id] && (room.botDue[p.id] ?? Infinity) <= now
+    p.bot && room.answers[p.id] === undefined && (room.botDue[p.id] ?? Infinity) <= now
   );
 
   if (due.length > 0) {
-    const claimed = await updateRoom(code, (r) => {
+    // Reveal only bots whose prepared answer has arrived; leave the rest due
+    // so a slow LLM response delays the reveal instead of producing junk.
+    await updateRoom(code, (r) => {
       if (r.phase !== "asking") return;
       for (const b of due) {
-        if (r.answers[b.id] === undefined && !r.botPending[b.id] && r.botDue[b.id] !== undefined) {
-          r.botPending[b.id] = true;
+        if (r.answers[b.id] !== undefined || r.botDue[b.id] === undefined) continue;
+        const prepared = r.botPrepared[b.id];
+        if (prepared !== undefined) {
+          r.answers[b.id] = prepared;
+          delete r.botDue[b.id];
         }
       }
     });
-    // Only the claimer (version moved) generates; others will see answers soon.
-    if (claimed && claimed.players.some((p) => p.bot && claimed.botPending[p.id])) {
-      const pending = claimed.players.filter((p) => p.bot && claimed.botPending[p.id]);
-      const answers = await botAnswers(
-        claimed.question ?? "",
-        pending.map((p) => ({ id: p.id, personality: p.personality })),
-      );
-      await updateRoom(code, (r) => {
-        if (r.phase !== "asking") return;
-        for (const b of pending) {
-          delete r.botPending[b.id];
-          if (r.answers[b.id] === undefined && answers[b.id]) r.answers[b.id] = answers[b.id];
-        }
-      });
-    }
   }
 
   await maybeEndRound(code);
