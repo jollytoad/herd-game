@@ -1,11 +1,13 @@
 {
   "tasks": {
-    "dev": "deno run --allow-net --allow-env --unstable-kv --watch main.ts",
-    "start": "deno run --allow-net --allow-env --unstable-kv main.ts",
-    "check": "deno check main.ts"
+    "dev": "deno run --allow-net --allow-env=PORT,OPENAI_API_KEY,OPENAI_BASE_URL,LLM_MODEL --unstable-kv --watch main.ts",
+    "start": "deno run --allow-net --allow-env=PORT,OPENAI_API_KEY,OPENAI_BASE_URL,LLM_MODEL --unstable-kv main.ts",
+    "check": "deno check main.ts",
+    "ci": "deno fmt --check && deno lint && deno check main.ts"
   },
+  "exclude": [".agents/"],
   "imports": {
-    "zod": "npm:zod@^3.25.0"
+    "zod": "jsr:@zod/zod@4.5.4"
   },
   "lint": {
     "rules": { "tags": ["recommended"] }

@@ -109,8 +109,9 @@ function sseHandler(req: Request, code: string): Response {
     async start(controller) {
       let lastVersion = -1;
       const send = (html: string) => {
+        // Unnamed events auto-swap via the hx-sse extension's hx-target/hx-swap.
         controller.enqueue(
-          encoder.encode(`event: board\ndata: ${html.replace(/\s*\n\s*/g, " ")}\n\n`),
+          encoder.encode(`data: ${html.replace(/\s*\n\s*/g, " ")}\n\n`),
         );
       };
       try {

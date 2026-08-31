@@ -36,7 +36,8 @@ function doc(title: string, body: string, opts: { htmx?: boolean; sseCode?: stri
 <link rel="stylesheet" href="/style.css">
 ${
     opts.htmx
-      ? `<script src="https://cdn.jsdelivr.net/npm/htmx.org@4.0.0/dist/htmx.min.js" defer></script>`
+      ? `<script src="https://cdn.jsdelivr.net/npm/htmx.org@4.0.0/dist/htmx.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/htmx.org@4.0.0/dist/ext/hx-sse.min.js" defer></script>`
       : ""
   }
 </head>
@@ -45,18 +46,8 @@ ${
 <main>
 ${body}
 </main>
-${opts.sseCode ? sseScript(opts.sseCode) : ""}
 </body>
 </html>`;
-}
-
-function sseScript(code: string): string {
-  return `<script>
-const es = new EventSource("/rooms/${esc(code)}/events");
-es.addEventListener("board", (e) => {
-  document.getElementById("board").innerHTML = e.data;
-});
-</script>`;
 }
 
 export function landingPage(): string {
@@ -106,7 +97,11 @@ export function joinPage(code: string, error?: string): string {
 export function roomPage(room: Room, player: Player): string {
   return doc(
     `${GAME_NAME} · ${room.code}`,
-    `<div id="board">${boardInner(room, player)}</div>`,
+    // The wrapper owns the SSE connection so it survives board swaps; each
+    // unnamed event (a full #board fragment) replaces the inner board.
+    `<div hx-sse:connect="/rooms/${
+      esc(room.code)
+    }/events" hx-target="find #board" hx-swap="outerHTML">${boardHtml(room, player)}</div>`,
     { htmx: true, sseCode: room.code },
   );
 }
@@ -234,7 +229,7 @@ function asking(room: Room, player: Player): string {
     ? `<div class="herd-banner" style="border-color:#4a3f7d;background:var(--bg2)">
         🔒 Locked in: <span class="answer">${esc(mine)}</span>
       </div>`
-    : `<form ${post(room.code, "answer")}>
+    : `<form ${post(room.code, "answer")} hx-disable="find button">
         <textarea name="answer" maxlength="120" placeholder="Your answer… (most people will agree, right?)"
           autocomplete="off" autofocus></textarea>
         <button class="btn primary">Lock it in</button>
