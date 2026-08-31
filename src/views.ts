@@ -97,11 +97,13 @@ export function joinPage(code: string, error?: string): string {
 export function roomPage(room: Room, player: Player): string {
   return doc(
     `${GAME_NAME} · ${room.code}`,
-    // The wrapper owns the SSE connection so it survives board swaps; each
-    // unnamed event (a full #board fragment) replaces the inner board.
+    // The wrapper owns the SSE connection so it survives board updates; each
+    // unnamed event (a full #board fragment) morphs the inner board in place,
+    // preserving the node identity the connection targets (and any in-progress
+    // typing during the 1s asking-phase refreshes).
     `<div hx-sse:connect="/rooms/${
       esc(room.code)
-    }/events" hx-target="find #board" hx-swap="outerHTML">${boardHtml(room, player)}</div>`,
+    }/events" hx-target="find #board" hx-swap="outerMorph">${boardHtml(room, player)}</div>`,
     { htmx: true, sseCode: room.code },
   );
 }
@@ -121,7 +123,10 @@ export function errorPage(message?: string): string {
 // ---------------------------------------------------------------------------
 
 function post(code: string, action: string, extra = ""): string {
-  return `hx-post="/rooms/${esc(code)}/${action}" hx-target="#board" hx-swap="outerHTML"${extra}`;
+  // outerMorph (not outerHTML) keeps the #board DOM node identical — the
+  // hx-sse connection holds that node as its swap target, and replacing it
+  // would orphan the live SSE stream until the next full page load.
+  return `hx-post="/rooms/${esc(code)}/${action}" hx-target="#board" hx-swap="outerMorph"${extra}`;
 }
 
 export function boardHtml(room: Room, player: Player): string {
