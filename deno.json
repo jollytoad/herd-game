@@ -1,0 +1,16 @@
+{
+  "tasks": {
+    "dev": "deno run --allow-net --allow-env --unstable-kv --watch main.ts",
+    "start": "deno run --allow-net --allow-env --unstable-kv main.ts",
+    "check": "deno check main.ts"
+  },
+  "imports": {
+    "zod": "npm:zod@^3.25.0"
+  },
+  "lint": {
+    "rules": { "tags": ["recommended"] }
+  },
+  "fmt": {
+    "lineWidth": 100
+  }
+}
