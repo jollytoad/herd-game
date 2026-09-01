@@ -27,10 +27,14 @@ import {
   submitAnswer,
   tickRoom,
 } from "./src/game.ts";
-import * as v from "./src/views.ts";
 import type { HtmlNode } from "@http/html-stream/types";
 import { renderString } from "@http/token-stream/render-string";
 import { renderHtmlBody } from "@http/html-stream/render-html-body";
+import { Board } from "./src/views/board-html.tsx";
+import { JoinPage } from "./src/views/join-page.tsx";
+import { RoomPage } from "./src/views/room-page.tsx";
+import { LandingPage } from "./src/views/landing-page.tsx";
+import { ErrorPage } from "./src/views/error-page.tsx";
 
 const PORT = Number(Deno.env.get("PORT") ?? 8000);
 
@@ -129,7 +133,7 @@ function sseHandler(req: Request, code: string): Response {
           const player = token ? room.players.find((p) => p.token === token) : undefined;
           if (!player) break; // not a member of this room
           if (room.version !== lastVersion || room.phase === "asking") {
-            await send(v.boardHtml(room, player));
+            await send(Board({ room, player }));
             lastVersion = room.version;
           } else {
             controller.enqueue(encoder.encode(": ping\n\n"));
@@ -162,7 +166,7 @@ function sseHandler(req: Request, code: string): Response {
 Deno.serve({ port: PORT }, async (req: Request): Promise<Response> => {
   const { pathname } = new URL(req.url);
   try {
-    if (req.method === "GET" && pathname === "/") return html(v.landingPage());
+    if (req.method === "GET" && pathname === "/") return html(LandingPage());
     if (req.method === "GET" && pathname === "/style.css") return cssResponse();
 
     // --- create / join (plain form posts with redirects) ---
@@ -174,9 +178,11 @@ Deno.serve({ port: PORT }, async (req: Request): Promise<Response> => {
     if (req.method === "POST" && pathname === "/rooms/join") {
       const code = normCode(await formField(req, "code"));
       const name = (await formField(req, "name")).trim().slice(0, 24) || "Player";
-      if (!code) return html(v.joinPage("----", "That code doesn't look right."), 400);
+      if (!code) {
+        return html(JoinPage({ code: "----", error: "That code doesn't look right." }), 400);
+      }
       const result = await addPlayer(code, name, false);
-      if ("error" in result) return html(v.joinPage(code, result.error), 400);
+      if ("error" in result) return html(JoinPage({ code, error: result.error }), 400);
       return redirect(`/rooms/${code}`, sessionCookie(code, result.token));
     }
 
@@ -188,8 +194,8 @@ Deno.serve({ port: PORT }, async (req: Request): Promise<Response> => {
 
       if (req.method === "GET" && action === "") {
         const session = await auth(req, code);
-        if (!session) return html(v.joinPage(code));
-        return html(v.roomPage(session.room, session.player));
+        if (!session) return html(JoinPage({ code }));
+        return html(RoomPage({ room: session.room, player: session.player }));
       }
       if (req.method === "GET" && action === "events") {
         return sseHandler(req, code);
@@ -197,13 +203,13 @@ Deno.serve({ port: PORT }, async (req: Request): Promise<Response> => {
       if (req.method === "POST" && action === "join") {
         const name = (await formField(req, "name")).trim().slice(0, 24) || "Player";
         const result = await addPlayer(code, name, false);
-        if ("error" in result) return html(v.joinPage(code, result.error), 400);
+        if ("error" in result) return html(JoinPage({ code, error: result.error }), 400);
         return redirect(`/rooms/${code}`, sessionCookie(code, result.token));
       }
 
       // everything below requires a seat at the table
       const session = await auth(req, code);
-      if (!session) return html(v.errorPage("You're not in that room."), 403);
+      if (!session) return html(ErrorPage({ message: "You're not in that room." }), 403);
       const { room: initial, player } = session;
 
       switch (req.method === "POST" ? action : "") {
@@ -244,18 +250,18 @@ Deno.serve({ port: PORT }, async (req: Request): Promise<Response> => {
           break;
         }
         default:
-          return html(v.errorPage("Unknown action."), 404);
+          return html(ErrorPage({ message: "Unknown action." }), 404);
       }
 
       const fresh = await getRoom(code);
-      if (!fresh) return html(v.errorPage("This room has vanished."), 404);
+      if (!fresh) return html(ErrorPage({ message: "This room has vanished." }), 404);
       const me = fresh.players.find((p) => p.id === player.id) ?? player;
-      return html(v.boardHtml(fresh, me));
+      return html(Board({ room: fresh, player: me }));
     }
 
-    return html(v.errorPage("404 — nothing here but hay."), 404);
+    return html(ErrorPage({ message: "404 — nothing here but hay." }), 404);
   } catch (err) {
     console.error("unhandled:", err);
-    return html(v.errorPage(), 500);
+    return html(ErrorPage(), 500);
   }
 });
