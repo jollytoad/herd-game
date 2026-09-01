@@ -189,6 +189,18 @@ export async function adjudicate(code: string): Promise<void> {
         await updateRoom(code, (r) => {
           if (r.phase !== "judging") return;
           const matched = new Set(verdict.matched_players);
+          for (const p of r.players) {
+            if (matched.has(p.id)) {
+              p.cows += 1;
+              p.pinkCow = false; // matching the herd sheds the pink cow
+            }
+          }
+          // Only ONE pink cow exists: it goes to a player solely when they are
+          // the ONLY player not in the herd. Existing holders otherwise keep it.
+          const missed = r.players.filter((p) => !matched.has(p.id));
+          if (verdict.herd_answer !== null && missed.length === 1) {
+            missed[0].pinkCow = true;
+          }
           r.lastResult = {
             herd: verdict.herd_answer,
             commentary: verdict.commentary,
@@ -196,16 +208,9 @@ export async function adjudicate(code: string): Promise<void> {
               name: p.name,
               answer: r.answers[p.id] ?? "(no answer)",
               inHerd: matched.has(p.id),
+              holdsPinkCow: p.pinkCow,
             })),
           };
-          for (const p of r.players) {
-            if (matched.has(p.id)) {
-              p.cows += 1;
-              p.pinkCow = false; // matching the herd sheds the pink cow
-            } else if (verdict.herd_answer !== null) {
-              p.pinkCow = true; // missed the herd on ANY question -> pink cow
-            }
-          }
           r.log.unshift({ round: r.round, question: r.question ?? "", herd: verdict.herd_answer });
           r.log = r.log.slice(0, 20);
           r.winners = r.players.filter((p) => p.cows >= WIN_COWS && !p.pinkCow).map((p) => p.id);

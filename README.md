@@ -49,8 +49,10 @@ What you get:
   submit "(no answer)" when time expires.
 - The LLM judge finds the **herd answer**, treating synonyms/rewordings as one answer; ties → **no
   herd**, nobody scores.
-- Matching the herd: +1 🐮 and you shed the pink cow. Missing the herd **on any question**: you're
-  stuck with the 🐷 pink cow until you match a herd again.
+- Matching the herd: +1 🐮 and you shed the pink cow. There is only **one** pink cow: if
+  you are the **only** player to miss the herd, you're stuck with the 🐷 pink cow until
+  you match a herd again; if several players miss, nobody gains it and existing holders
+  keep it.
 - First to **8 cows without holding the pink cow** wins (win check is pure code).
 - Any player can hit "Bad question"; when a majority rejects, the question is discarded and a new
   one is drawn.

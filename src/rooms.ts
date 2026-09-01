@@ -22,6 +22,7 @@ export interface JudgedAnswer {
   name: string;
   answer: string;
   inHerd: boolean;
+  holdsPinkCow: boolean;
 }
 
 export interface Judgement {

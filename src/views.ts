@@ -282,7 +282,13 @@ function results(room: Room, player: Player): string {
       <span class="who">${esc(a.name)}:</span>
       <span style="flex:1;text-align:left">“${esc(a.answer)}”</span>
       <span class="badge">${
-      a.inHerd ? "✅ herd · +1 🐮" : r.herd === null ? "❌ no herd" : "🐷 pink cow"
+      a.inHerd
+        ? "✅ herd · +1 🐮"
+        : a.holdsPinkCow
+        ? "🐷 pink cow"
+        : r.herd === null
+        ? "❌ no herd"
+        : "❌ missed"
     }</span>
     </div>`
   ).join("");
