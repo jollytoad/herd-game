@@ -1,11 +1,35 @@
 {
   "version": "5",
   "specifiers": {
+    "jsr:@http/html-stream@0.11": "0.11.0",
+    "jsr:@http/jsx-stream@0.11": "0.11.0",
+    "jsr:@http/token-stream@0.11": "0.11.0",
+    "jsr:@std/html@^1.0.3": "1.0.7",
     "jsr:@zod/zod@4.5.4": "4.5.4",
     "npm:@opentelemetry/api@*": "1.9.1",
     "npm:@opentelemetry/api@^1.9.1": "1.9.1"
   },
   "jsr": {
+    "@http/html-stream@0.11.0": {
+      "integrity": "a133bb62bb6e79e2cef48dff723ec65031ce1eda8c04a5e92a980eb1d04caa9b",
+      "dependencies": [
+        "jsr:@http/token-stream",
+        "jsr:@std/html"
+      ]
+    },
+    "@http/jsx-stream@0.11.0": {
+      "integrity": "f8de93292daf843c01009ad18610a7740cfb31c6d2e10f22dad98c3c1531bdcc",
+      "dependencies": [
+        "jsr:@http/html-stream",
+        "jsr:@http/token-stream"
+      ]
+    },
+    "@http/token-stream@0.11.0": {
+      "integrity": "b9a432c2c95be74b9d8316ad8b1c7b9b15a7361fe7aa2ba6371843045486c969"
+    },
+    "@std/html@1.0.7": {
+      "integrity": "175c818905a6e75743c69c251395e273d82698e58cfe7dd76268d70e28b8d8fe"
+    },
     "@zod/zod@4.5.4": {
       "integrity": "bf0da80e42232d5f9f485d37b5c980e0d88f07fe04b9b1f2bd9012c008404df4"
     }
@@ -17,6 +41,9 @@
   },
   "workspace": {
     "dependencies": [
+      "jsr:@http/html-stream@0.11",
+      "jsr:@http/jsx-stream@0.11",
+      "jsr:@http/token-stream@0.11",
       "jsr:@zod/zod@4.5.4",
       "npm:@opentelemetry/api@^1.9.1"
     ]

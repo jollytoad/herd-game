@@ -28,6 +28,9 @@ import {
   tickRoom,
 } from "./src/game.ts";
 import * as v from "./src/views.ts";
+import type { HtmlNode } from "@http/html-stream/types";
+import { renderString } from "@http/token-stream/render-string";
+import { renderHtmlBody } from "@http/html-stream/render-html-body";
 
 const PORT = Number(Deno.env.get("PORT") ?? 8000);
 
@@ -35,8 +38,8 @@ const PORT = Number(Deno.env.get("PORT") ?? 8000);
 // Http helpers
 // ---------------------------------------------------------------------------
 
-function html(body: string, status = 200): Response {
-  return new Response(body, {
+function html(body: HtmlNode, status = 200): Response {
+  return new Response(renderHtmlBody(body), {
     status,
     headers: { "content-type": "text/html; charset=utf-8" },
   });
@@ -108,10 +111,10 @@ function sseHandler(req: Request, code: string): Response {
   const stream = new ReadableStream({
     async start(controller) {
       let lastVersion = -1;
-      const send = (html: string) => {
+      const send = async (html: HtmlNode) => {
         // Unnamed events auto-swap via the hx-sse extension's hx-target/hx-swap.
         controller.enqueue(
-          encoder.encode(`data: ${html.replace(/\s*\n\s*/g, " ")}\n\n`),
+          encoder.encode(`data: ${(await renderString(html)).replace(/\s*\n\s*/g, " ")}\n\n`),
         );
       };
       try {
@@ -126,7 +129,7 @@ function sseHandler(req: Request, code: string): Response {
           const player = token ? room.players.find((p) => p.token === token) : undefined;
           if (!player) break; // not a member of this room
           if (room.version !== lastVersion || room.phase === "asking") {
-            send(v.boardHtml(room, player));
+            await send(v.boardHtml(room, player));
             lastVersion = room.version;
           } else {
             controller.enqueue(encoder.encode(": ping\n\n"));
