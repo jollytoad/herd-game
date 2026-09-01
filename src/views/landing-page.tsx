@@ -21,8 +21,8 @@ function Heading() {
     <>
       <h1>
         <span>🐮</span>
-        <span>{words.join(" ")}</span>
-        <span class="pink">${last}</span>
+        <span> {words.join(" ")}</span>
+        <span class="pink"> {last}</span>
       </h1>
       <p class="tag">{TAGLINE}</p>
     </>
