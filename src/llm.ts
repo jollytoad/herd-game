@@ -1,16 +1,15 @@
-/** Minimal OpenAI-compatible chat client. Configured via standard env vars:
- *  OPENAI_BASE_URL (default https://api.openai.com/v1), OPENAI_API_KEY, LLM_MODEL.
- *  When no key is set, the whole game runs in mock mode (see judge.ts). */
+/** Minimal Ollama Cloud chat client. Configured via standard env vars:
+ *  OLLAMA_BASE_URL (default https://ollama.com), OLLAMA_API_KEY, LLM_MODEL.
+ *  When no key is set, the whole game runs in mock mode (see judge.ts).
+ *
+ *  Spec: https://docs.ollama.com/api/chat */
 
 export type Msg = { role: "system" | "user" | "assistant"; content: string };
 
-const BASE_URL = (Deno.env.get("OPENAI_BASE_URL") ?? "https://api.openai.com/v1").replace(
-  /\/+$/,
-  "",
-);
-const API_KEY = Deno.env.get("OPENAI_API_KEY") ?? "";
+const BASE_URL = (Deno.env.get("OLLAMA_BASE_URL") ?? "https://ollama.com").replace(/\/+$/, "");
+const API_KEY = Deno.env.get("OLLAMA_API_KEY") ?? "";
 
-export const LLM_MODEL = Deno.env.get("LLM_MODEL") ?? "gpt-4o-mini";
+export const LLM_MODEL = Deno.env.get("LLM_MODEL") ?? "gpt-oss:120b";
 export const llmEnabled = API_KEY.length > 0;
 
 const TIMEOUT_MS = 45_000;
@@ -46,26 +45,38 @@ async function doChat(
   messages: Msg[],
   opts: { json?: boolean; temperature?: number; maxTokens?: number } = {},
 ): Promise<string> {
-  const res = await fetch(`${BASE_URL}/chat/completions`, {
+  // Note: no `think` field — models use their default. (glm-5.3-flash thinks
+  // by default; forcing think:false makes it leak reasoning into content.)
+  const body: Record<string, unknown> = {
+    model: LLM_MODEL,
+    messages,
+    stream: false,
+    options: {
+      temperature: opts.temperature ?? 0.8,
+      ...(opts.maxTokens ? { num_predict: opts.maxTokens } : {}),
+    },
+  };
+  if (opts.json) body.format = "json";
+
+  const res = await fetch(`${BASE_URL}/api/chat`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
       ...(API_KEY ? { authorization: `Bearer ${API_KEY}` } : {}),
     },
-    body: JSON.stringify({
-      model: LLM_MODEL,
-      messages,
-      temperature: opts.temperature ?? 0.8,
-      ...(opts.maxTokens ? { max_tokens: opts.maxTokens } : {}),
-      ...(opts.json ? { response_format: { type: "json_object" } } : {}),
-    }),
+    body: JSON.stringify(body),
     signal: AbortSignal.timeout(TIMEOUT_MS),
   });
   if (!res.ok) {
     throw new Error(`LLM request failed (${res.status}): ${(await res.text()).slice(0, 300)}`);
   }
   const data = await res.json();
-  const content: unknown = data?.choices?.[0]?.message?.content;
+  const content: unknown = data?.message?.content;
+  // num_predict caps thinking + content combined, so thinking models can run
+  // out of budget mid-answer (done_reason "length") — surface that clearly.
+  if (data?.done_reason === "length") {
+    throw new Error("LLM output truncated (num_predict too small)");
+  }
   if (typeof content !== "string" || content.length === 0) {
     throw new Error("LLM returned an empty response");
   }

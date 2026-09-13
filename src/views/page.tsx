@@ -31,7 +31,9 @@ export function Page(
           🐮 {GAME_NAME}
           {props.sseCode
             ? (
-              <span> · room <b>{props.sseCode}</b></span>
+              <span>
+                · room <b>{props.sseCode}</b>
+              </span>
             )
             : null}
         </header>

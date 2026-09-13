@@ -32,37 +32,21 @@ import { seeOther } from "@http/response/see-other";
 import { sessionCookie } from "./session.ts";
 import { auth } from "./auth.ts";
 import { sseHandler } from "./sse-handler.ts";
-
-async function formField(req: Request, name: string): Promise<string> {
-  try {
-    const form = await req.formData();
-    const value = form.get(name);
-    return typeof value === "string" ? value : "";
-  } catch {
-    return "";
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Routes
-// ---------------------------------------------------------------------------
+import { getBodyAsObject } from "@http/request/body-as-object";
 
 /** Room codes are 4 uppercase letters/digits; actions are lowercase words. */
 const ROOM = "/rooms/:code([A-Z0-9]{4})";
 
-/** Look up the room code captured by a URLPattern match. */
-function codeOf(match: URLPatternResult): string {
-  return match.pathname.groups.code!;
-}
-
 /** Handle the POST game actions (requires a seat at the table). */
 async function roomAction(req: Request, match: URLPatternResult): Promise<Response> {
-  const code = codeOf(match);
+  const code = match.pathname.groups.code!;
   const action = match.pathname.groups.action!;
 
   const session = await auth(req, code);
   if (!session) return html(ErrorPage({ message: "You're not in that room." }), 403);
   const { room: initial, player } = session;
+
+  const form = await getBodyAsObject<Record<string, string>>(req);
 
   switch (action) {
     case "start":
@@ -72,7 +56,7 @@ async function roomAction(req: Request, match: URLPatternResult): Promise<Respon
       await nextRound(code);
       break;
     case "answer":
-      await submitAnswer(code, player.id, await formField(req, "answer"));
+      await submitAnswer(code, player.id, form["answer"]);
       break;
     case "reject":
       await rejectQuestion(code, player.id);
@@ -86,13 +70,13 @@ async function roomAction(req: Request, match: URLPatternResult): Promise<Respon
     }
     case "remove": {
       if (player.id === initial.hostId && initial.phase === "lobby") {
-        await removePlayer(code, (await formField(req, "id")).trim());
+        await removePlayer(code, form.id.trim());
       }
       break;
     }
     case "timer": {
       if (player.id === initial.hostId && initial.phase === "lobby") {
-        const seconds = Number(await formField(req, "seconds"));
+        const seconds = Number.parseInt(form.seconds);
         if ([0, 60, 90, 120].includes(seconds)) await setTimer(code, seconds);
       }
       break;
@@ -135,7 +119,8 @@ export default cascade(
     "/rooms",
     byMethod({
       POST: async (req) => {
-        const name = (await formField(req, "name")).trim().slice(0, 24) || "Player";
+        const form = await getBodyAsObject<Record<string, string>>(req);
+        const name = form.name?.trim().slice(0, 24) || "Player";
         const { code, token } = await createRoom(name);
         return seeOther(`/rooms/${code}`, sessionCookie(code, token));
       },
@@ -145,8 +130,9 @@ export default cascade(
     "/rooms/join",
     byMethod({
       POST: async (req) => {
-        const code = normCode(await formField(req, "code"));
-        const name = (await formField(req, "name")).trim().slice(0, 24) || "Player";
+        const form = await getBodyAsObject<Record<string, string>>(req);
+        const code = normCode(form.code ?? "");
+        const name = form.name?.trim().slice(0, 24) || "Player";
         if (!code) {
           return html(JoinPage({ code: "----", error: "That code doesn't look right." }), 400);
         }
@@ -161,7 +147,7 @@ export default cascade(
     ROOM,
     byMethod({
       GET: async (req, match) => {
-        const code = codeOf(match);
+        const code = match.pathname.groups.code!;
         const session = await auth(req, code);
         if (!session) return html(JoinPage({ code }));
         return html(RoomPage({ room: session.room, player: session.player }));
@@ -171,24 +157,27 @@ export default cascade(
   byPattern(
     `${ROOM}/events`,
     byMethod({
-      GET: (req, match) => sseHandler(req, codeOf(match)),
+      GET: (req, match) => sseHandler(req, match.pathname.groups.code!),
     }),
   ),
   byPattern(
     `${ROOM}/join`,
     byMethod({
       POST: async (req, match) => {
-        const code = codeOf(match);
-        const name = (await formField(req, "name")).trim().slice(0, 24) || "Player";
+        const code = match.pathname.groups.code!;
+        const form = await getBodyAsObject<Record<string, string>>(req);
+        const name = form.name?.trim().slice(0, 24) || "Player";
         const result = await addPlayer(code, name, false);
         if ("error" in result) return html(JoinPage({ code, error: result.error }), 400);
         return seeOther(`/rooms/${code}`, sessionCookie(code, result.token));
       },
     }),
   ),
+  // TODO: wrap in an interceptor that check the player is in the room
   byPattern(
     `${ROOM}/:action([a-z]+)`,
     byMethod({
+      // TODO: split actions into separate routes
       POST: roomAction,
     }),
   ),

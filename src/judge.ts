@@ -168,7 +168,9 @@ async function judgeRoundLlm(room: Room, span: Span): Promise<Verdict> {
     let raw = "";
     let feedback: string;
     try {
-      raw = await chat(messages, { json: true, temperature: 0.7, maxTokens: 400 });
+      // maxTokens must cover thinking + answer: thinking models (e.g.
+      // glm-5.3-flash) burn budget on a reasoning trace before the JSON.
+      raw = await chat(messages, { json: true, temperature: 0.7, maxTokens: 4096 });
       const parsed = Verdict.safeParse(parseJsonLoose(raw));
       if (parsed.success) {
         const problem = validateVerdict(parsed.data, room);
@@ -319,7 +321,7 @@ export function botAnswers(
             },
             { role: "user", content: `Prompt: ${JSON.stringify(question)}\n\nPlayers:\n${roster}` },
           ],
-          { json: true, temperature: 0.9, maxTokens: 300 },
+          { json: true, temperature: 0.9, maxTokens: 2048 },
         );
         const data = z.object({
           answers: z.array(z.object({ id: z.string(), answer: z.string().min(1).max(80) })).min(1),

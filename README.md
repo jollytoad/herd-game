@@ -2,7 +2,7 @@
 
 Pure HTML + CSS frontend, server-rendered TS→HTML strings, htmx 4 for actions, SSE for live board
 updates, Deno (`Deno.serve` only, no framework) with Deno KV state, and an LLM
-referee/question-writer with a configurable OpenAI-compatible provider.
+referee/question-writer powered by the [Ollama Cloud](https://docs.ollama.com/cloud) REST API.
 
 ## Run
 
@@ -11,17 +11,17 @@ deno task dev        # or: deno task start
 # → http://localhost:8000
 ```
 
-Requires Deno ≥ 2 (`pkgx deno` works too). With no `OPENAI_API_KEY` set, the game runs in **mock
+Requires Deno ≥ 2 (`pkgx deno` works too). With no `OLLAMA_API_KEY` set, the game runs in **mock
 mode**: canned question deck, deterministic exact-match judge, dumb bots — useful for offline dev.
 
 ## Configuration (env vars)
 
-| var               | default                     | purpose                                |
-| ----------------- | --------------------------- | -------------------------------------- |
-| `OPENAI_API_KEY`  | — (mock mode if unset)      | API key for the LLM provider           |
-| `OPENAI_BASE_URL` | `https://api.openai.com/v1` | any OpenAI-compatible gateway          |
-| `LLM_MODEL`       | `gpt-4o-mini`               | model for judging, questions, and bots |
-| `PORT`            | `8000`                      | listen port                            |
+| var               | default                | purpose                                |
+| ----------------- | ---------------------- | -------------------------------------- |
+| `OLLAMA_API_KEY`  | — (mock mode if unset) | API key for Ollama Cloud               |
+| `OLLAMA_BASE_URL` | `https://ollama.com`   | Ollama-compatible endpoint             |
+| `LLM_MODEL`       | `gpt-oss:120b`         | model for judging, questions, and bots |
+| `PORT`            | `8000`                 | listen port                            |
 
 ## OpenTelemetry (dev)
 
@@ -93,7 +93,7 @@ style.css          The one stylesheet
 - `Deno.openKv()` needs `--unstable-kv` locally; on Deploy it's enabled by default. Rooms expire
   after 24h of no writes (KV `expireIn`, refreshed on every update).
 - **Permissions:** env access is scoped to exactly the four variables read (`PORT`,
-  `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `LLM_MODEL`). `--allow-net` stays unscoped because the server
-  both listens on `PORT` and makes outbound fetches to whichever LLM gateway `OPENAI_BASE_URL`
+  `OLLAMA_API_KEY`, `OLLAMA_BASE_URL`, `LLM_MODEL`). `--allow-net` stays unscoped because the server
+  both listens on `PORT` and makes outbound fetches to whichever LLM gateway `OLLAMA_BASE_URL`
   points at.
 - `deno task ci` runs the same gates locally as CI: `fmt --check`, `lint`, `check`.
