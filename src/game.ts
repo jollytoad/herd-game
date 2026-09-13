@@ -8,16 +8,7 @@
  *  revealed 1–5s in; until prepared, bots simply haven't answered yet. Deck
  *  top-ups also run in the background unless the deck is truly empty. */
 
-import {
-  BOT_NAMES,
-  getRoom,
-  MAX_PLAYERS,
-  PERSONALITIES,
-  type Player,
-  type Room,
-  updateRoom,
-  WIN_COWS,
-} from "./rooms.ts";
+import { getRoom, MAX_PLAYERS, type Player, type Room, updateRoom, WIN_COWS } from "./rooms.ts";
 import { botAnswers, generateQuestions, judgeRound } from "./judge.ts";
 
 const DECK_TOPUP = 12;
@@ -201,51 +192,6 @@ export async function adjudicate(code: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Player actions
-// ---------------------------------------------------------------------------
-
-export async function submitAnswer(code: string, playerId: string, text: string): Promise<void> {
-  const answer = (text.trim() || "(no answer)").slice(0, 120);
-  await updateRoom(code, (r) => {
-    if (r.phase === "asking") r.answers[playerId] = answer;
-  });
-  // Do NOT await adjudication here — the SSE tick loop picks it up within 1s,
-  // so the submitting player gets a snappy response.
-}
-
-export async function rejectQuestion(code: string, playerId: string): Promise<void> {
-  const room = await getRoom(code);
-  if (!room || room.phase !== "asking") return;
-  if (room.rejects.includes(playerId)) return;
-
-  const rejects = [...room.rejects, playerId];
-  const threshold = Math.ceil(room.players.length / 2);
-  if (rejects.length >= threshold) {
-    // Guard against double-flips when two players reject simultaneously.
-    const fresh = await getRoom(code);
-    if (fresh && fresh.phase === "asking" && fresh.question === room.question) {
-      await drawQuestion(code);
-    }
-    return;
-  }
-  await updateRoom(code, (r) => {
-    if (r.phase === "asking" && !r.rejects.includes(playerId)) r.rejects.push(playerId);
-  });
-}
-
-export async function startGame(code: string): Promise<void> {
-  const room = await getRoom(code);
-  if (!room || room.phase !== "lobby" || room.players.length < 3) return;
-  await drawQuestion(code);
-}
-
-export async function nextRound(code: string): Promise<void> {
-  const room = await getRoom(code);
-  if (!room || room.phase !== "results") return;
-  await drawQuestion(code);
-}
-
-// ---------------------------------------------------------------------------
 // Lazy tick: bot reveals + round-end detection (drives everything on a 1s SSE loop)
 // ---------------------------------------------------------------------------
 
@@ -278,18 +224,8 @@ export async function tickRoom(code: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Misc helpers used by routes
+// Misc helpers
 // ---------------------------------------------------------------------------
-
-export function randomBotName(taken: string[]): string {
-  const free = BOT_NAMES.filter((n) => !taken.some((t) => t.toLowerCase() === n.toLowerCase()));
-  const pool = free.length > 0 ? free : BOT_NAMES;
-  return pool[Math.floor(Math.random() * pool.length)];
-}
-
-export function randomPersonality(): string {
-  return PERSONALITIES[Math.floor(Math.random() * PERSONALITIES.length)];
-}
 
 export function canStart(room: { phase: string; players: unknown[] }): boolean {
   return room.phase === "lobby" && room.players.length >= 3 && room.players.length <= MAX_PLAYERS;

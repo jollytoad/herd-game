@@ -40,11 +40,15 @@ mode**: canned question deck, deterministic exact-match judge, dumb bots — use
 ## Architecture
 
 ```
-main.ts            Deno.serve + hand-rolled router (no framework)
+main.ts            Deno.serve entry
+src/routes.ts      route manifest: URL pattern → lazy import of its route module
+src/routes/        file-based routing — folders/files mirror URL paths
+                   ([code] = :code param; each module exports GET/POST handlers,
+                   e.g. src/routes/rooms/[code]/answer.ts → POST /rooms/:code/answer)
 src/rooms.ts       Types + Deno KV storage (optimistic-concurrency updates)
 src/game.ts        Phase machine, lazy timers, bot scheduling, adjudication
 src/judge.ts       LLM prompts, zod verdict schema, agent retry loop, fallbacks
-src/views.ts       TS template literals → HTML (pages + swappable #board)
+src/views/         TSX → HTML (pages + swappable #board)
 public/            static assets (style.css etc.), served via @http/route staticRoute
 ```
 

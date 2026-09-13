@@ -180,39 +180,6 @@ export async function addPlayer(
   return { token: player.token };
 }
 
-export async function removePlayer(code: string, playerId: string): Promise<void> {
-  await updateRoom(code, (r) => {
-    if (r.phase !== "lobby" || playerId === r.hostId) return;
-    r.players = r.players.filter((p) => p.id !== playerId);
-  });
-}
-
-export async function setTimer(code: string, seconds: number): Promise<void> {
-  await updateRoom(code, (r) => {
-    if (r.phase === "lobby") r.timerSeconds = seconds;
-  });
-}
-
-export async function resetGame(code: string): Promise<void> {
-  await updateRoom(code, (r) => {
-    r.phase = "lobby";
-    r.round = 0;
-    r.winners = [];
-    r.lastResult = null;
-    r.question = null;
-    r.answers = {};
-    r.rejects = [];
-    r.deadline = null;
-    r.botDue = {};
-    r.botPrepared = {};
-    r.judgingToken = null;
-    for (const p of r.players) {
-      p.cows = 0;
-      p.pinkCow = false;
-    }
-  });
-}
-
 /** Touch a player's lastSeen (throttled so it doesn't churn versions). */
 export async function touchPlayer(code: string, playerId: string): Promise<void> {
   const room = await getRoom(code);

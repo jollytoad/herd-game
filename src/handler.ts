@@ -1,9 +1,14 @@
 import routes from "./routes.ts";
 import { html } from "./html.ts";
 import { ErrorPage } from "./views/error-page.tsx";
-import { withFallback } from "@http/route/with-fallback";
+import { interceptResponse } from "@http/interceptor/intercept-response";
+import { staticRoute } from "@http/route/static-route";
+import { skip } from "@http/interceptor/skip";
+import { handle } from "@http/route/handle";
 
-export default withFallback(
+const assets = interceptResponse(staticRoute("/", import.meta.resolve("../public")), skip(405));
+
+export default handle([
   routes,
-  () => html(ErrorPage({ message: "404 — nothing here but hay." }), 404),
-);
+  assets,
+], () => html(ErrorPage({ message: "404 — nothing here but hay." }), 404));
