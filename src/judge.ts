@@ -179,9 +179,53 @@ const QUESTION_RULES = `You write prompts for the party game "${GAME_NAME}". A g
 - is short (under 15 words), like "What's the most useless superpower?" or "Name a fruit you could eat ten of in one sitting"
 - is an everyday-opinion question a group of friends will cluster on: most people land on 2-4 common answers
 - is family-friendly, needs no context, and works worldwide
-- varies topic from round to round (food, chores, celebrities, habits, hypotheticals...)
+- sticks to the topic it's assigned, and varies its wording: mix up "Name a ...", "What's the best/worst ...", "How many ...", "What's something ...", "If you could ..."
 
 Respond with ONLY a JSON object: {"questions": ["...", "..."]}`;
+
+/** Topic pool sampled per generation call: each batch gets a different random
+ *  subset + order, so the model never sees the same prompt twice and can't
+ *  collapse onto the same handful of stereotypical party-game topics. */
+const QUESTION_TOPICS = [
+  "food",
+  "household chores",
+  "celebrities",
+  "daily habits",
+  "hypothetical superpowers",
+  "childhood memories",
+  "work life",
+  "school days",
+  "animals",
+  "travel & holidays",
+  "technology",
+  "sport & exercise",
+  "music",
+  "movies & TV",
+  "weather & seasons",
+  "money & shopping",
+  "dating & relationships",
+  "family",
+  "pets",
+  "sleep & mornings",
+  "cars & driving",
+  "cooking",
+  "dreams & fears",
+  "parties & nights out",
+  "gifts",
+  "fashion & clothing",
+  "social media",
+  "video games",
+  "books & reading",
+  "embarrassing moments",
+  "inventions & gadgets",
+  "the future",
+  "excuses & white lies",
+  "weird food combinations",
+  "phobias",
+  "hobbies",
+  "home life",
+  "neighbours",
+];
 
 const MOCK_QUESTIONS = [
   "Name a fruit you could eat ten of in one sitting.",
@@ -213,23 +257,49 @@ function shuffle<T>(arr: T[]): T[] {
   return out;
 }
 
-export async function generateQuestions(n = 12): Promise<string[]> {
+export async function generateQuestions(n = 12, avoid: string[] = []): Promise<string[]> {
   if (!llmEnabled) return shuffle(MOCK_QUESTIONS).slice(0, n);
+  const topics = shuffle(QUESTION_TOPICS).slice(0, n);
+  const avoidList = avoid.slice(0, 40).map((q) => `- ${q}`).join("\n");
   try {
     const raw = await chat(
       [
         { role: "system", content: QUESTION_RULES },
-        { role: "user", content: `Generate ${n} questions.` },
+        {
+          role: "user",
+          content: `Write ${n} prompts, one per topic, in this order:\n${
+            topics.map((t, i) => `${i + 1}. ${t}`).join("\n")
+          }` +
+            (avoidList
+              ? `\n\nAlready used in this game — do NOT repeat or rephrase any of these:\n${avoidList}`
+              : ""),
+        },
       ],
       { json: true, temperature: 1.0 },
     );
     const data = z.object({ questions: z.array(z.string().min(5).max(200)).min(1) })
       .parse(parseJsonLoose(raw));
-    return data.questions;
+    return dedupeQuestions(data.questions, avoid);
   } catch (err) {
     console.error("question generation failed, using fallback deck:", err);
     return shuffle(MOCK_QUESTIONS).slice(0, n);
   }
+}
+
+/** Drop exact/near duplicates (case/punctuation-insensitive) within the batch
+ *  and against the avoid list. */
+function dedupeQuestions(questions: string[], avoid: string[]): string[] {
+  const seen = new Set(avoid.map(normalizeQuestion));
+  return questions.filter((q) => {
+    const key = normalizeQuestion(q);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function normalizeQuestion(q: string): string {
+  return q.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, "").replace(/\s+/g, " ").trim();
 }
 
 // ---------------------------------------------------------------------------

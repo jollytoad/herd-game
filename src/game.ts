@@ -91,7 +91,7 @@ export async function drawQuestion(code: string): Promise<Room | null> {
   // this one LLM call blocks. Later flips only background-top-up.
   let room = await getRoom(code);
   if (room && room.deck.length === 0) {
-    const questions = await generateQuestions(DECK_TOPUP);
+    const questions = await generateQuestions(DECK_TOPUP, room.log.map((l) => l.question));
     await updateRoom(code, (r) => {
       r.deck.push(...questions);
     });
