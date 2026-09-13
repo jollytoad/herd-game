@@ -45,7 +45,7 @@ src/rooms.ts       Types + Deno KV storage (optimistic-concurrency updates)
 src/game.ts        Phase machine, lazy timers, bot scheduling, adjudication
 src/judge.ts       LLM prompts, zod verdict schema, agent retry loop, fallbacks
 src/views.ts       TS template literals → HTML (pages + swappable #board)
-style.css          The one stylesheet
+public/            static assets (style.css etc.), served via @http/route staticRoute
 ```
 
 - **State owner:** the server (Deno KV, key `["rooms", CODE]`). The LLM never stores state; each

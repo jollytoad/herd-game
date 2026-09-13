@@ -17,6 +17,7 @@
     ".agents/"
   ],
   "imports": {
+    "@http/fs": "jsr:@http/fs@^0.30.0",
     "@http/host-deno-local": "jsr:@http/host-deno-local@^0.30.0",
     "@http/html-stream": "jsr:@http/html-stream@^0.11.0",
     "@http/interceptor": "jsr:@http/interceptor@^0.30.0",

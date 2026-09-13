@@ -151,6 +151,7 @@
   },
   "workspace": {
     "dependencies": [
+      "jsr:@http/fs@0.30",
       "jsr:@http/host-deno-local@0.30",
       "jsr:@http/html-stream@0.11",
       "jsr:@http/interceptor@0.30",

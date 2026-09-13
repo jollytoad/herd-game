@@ -2,7 +2,11 @@ import { cascade } from "@http/route/cascade";
 import { byPattern } from "@http/route/by-pattern";
 import { byMethod } from "@http/route/by-method";
 import { renderHtmlResponse } from "@http/html-stream/render-html-response";
-import { ok } from "@http/response/ok";
+import { interceptResponse } from "@http/interceptor/intercept-response";
+import { skip } from "@http/interceptor/skip";
+import { staticRoute } from "@http/route/static-route";
+import { getBodyAsObject } from "@http/request/body-as-object";
+import { seeOther } from "@http/response/see-other";
 
 import { LandingPage } from "./views/landing-page.tsx";
 import { JoinPage } from "./views/join-page.tsx";
@@ -15,8 +19,10 @@ import {
   createRoom,
   getRoom,
   normCode,
+  type Player,
   removePlayer,
   resetGame,
+  type Room,
   setTimer,
 } from "./rooms.ts";
 import {
@@ -28,90 +34,124 @@ import {
   submitAnswer,
 } from "./game.ts";
 import { html } from "./html.ts";
-import { seeOther } from "@http/response/see-other";
 import { sessionCookie } from "./session.ts";
 import { auth } from "./auth.ts";
 import { sseHandler } from "./sse-handler.ts";
-import { getBodyAsObject } from "@http/request/body-as-object";
 
 /** Room codes are 4 uppercase letters/digits; actions are lowercase words. */
 const ROOM = "/rooms/:code([A-Z0-9]{4})";
 
-/** Handle the POST game actions (requires a seat at the table). */
-async function roomAction(req: Request, match: URLPatternResult): Promise<Response> {
-  const code = match.pathname.groups.code!;
-  const action = match.pathname.groups.action!;
+// ---------------------------------------------------------------------------
+// Game-action helpers
+// ---------------------------------------------------------------------------
 
-  const session = await auth(req, code);
-  if (!session) return html(ErrorPage({ message: "You're not in that room." }), 403);
-  const { room: initial, player } = session;
+function notSeated(): Response {
+  return html(ErrorPage({ message: "You're not in that room." }), 403);
+}
 
-  const form = await getBodyAsObject<Record<string, string>>(req);
+function notHost(): Response {
+  return html(ErrorPage({ message: "Only the host can do that." }), 403);
+}
 
-  switch (action) {
-    case "start":
-      await startGame(code);
-      break;
-    case "next":
-      await nextRound(code);
-      break;
-    case "answer":
-      await submitAnswer(code, player.id, form["answer"]);
-      break;
-    case "reject":
-      await rejectQuestion(code, player.id);
-      break;
-    case "bot": {
-      if (player.id === initial.hostId && initial.phase === "lobby") {
-        const taken = (await getRoom(code))?.players.map((p) => p.name) ?? [];
-        await addPlayer(code, randomBotName(taken), true, randomPersonality());
-      }
-      break;
-    }
-    case "remove": {
-      if (player.id === initial.hostId && initial.phase === "lobby") {
-        await removePlayer(code, form.id.trim());
-      }
-      break;
-    }
-    case "timer": {
-      if (player.id === initial.hostId && initial.phase === "lobby") {
-        const seconds = Number.parseInt(form.seconds);
-        if ([0, 60, 90, 120].includes(seconds)) await setTimer(code, seconds);
-      }
-      break;
-    }
-    case "again": {
-      if (player.id === initial.hostId) await resetGame(code);
-      break;
-    }
-    default:
-      return html(ErrorPage({ message: "Unknown action." }), 404);
-  }
-
+/** Standard action reply: re-read the room and render the caller's board. */
+async function boardReply(code: string, player: Player): Promise<Response> {
   const fresh = await getRoom(code);
   if (!fresh) return html(ErrorPage({ message: "This room has vanished." }), 404);
   const me = fresh.players.find((p) => p.id === player.id) ?? player;
   return html(Board({ room: fresh, player: me }));
 }
 
+type ActionCtx = {
+  code: string;
+  room: Room; // snapshot at request time
+  player: Player;
+  form: Record<string, string>;
+};
+
+/** Seat-auth interceptor for game actions: resolves the room + player from
+ *  the room-scoped cookie and parses the form body before calling through. */
+function withSeat(
+  handle: (ctx: ActionCtx) => Promise<Response>,
+): (req: Request, match: URLPatternResult) => Promise<Response> {
+  return async (req, match) => {
+    const code = match.pathname.groups.code!;
+    const session = await auth(req, code);
+    if (!session) return notSeated();
+    const form = await getBodyAsObject<Record<string, string>>(req);
+    return handle({ code, room: session.room, player: session.player, form });
+  };
+}
+
+/** 403 unless the caller is the host (and, with `lobbyOnly`, still in the lobby). */
+function hostGuard(ctx: ActionCtx, lobbyOnly = false): Response | null {
+  if (ctx.player.id !== ctx.room.hostId) return notHost();
+  if (lobbyOnly && ctx.room.phase !== "lobby") return notHost();
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// The game actions (one handler per route)
+// ---------------------------------------------------------------------------
+
+const startAction = withSeat(async ({ code, player }) => {
+  await startGame(code);
+  return boardReply(code, player);
+});
+
+const answerAction = withSeat(async ({ code, player, form }) => {
+  await submitAnswer(code, player.id, form.answer ?? "");
+  return boardReply(code, player);
+});
+
+const rejectAction = withSeat(async ({ code, player }) => {
+  await rejectQuestion(code, player.id);
+  return boardReply(code, player);
+});
+
+const nextAction = withSeat(async ({ code, player }) => {
+  await nextRound(code);
+  return boardReply(code, player);
+});
+
+const botAction = withSeat(async (ctx) => {
+  const denied = hostGuard(ctx, true);
+  if (denied) return denied;
+  const taken = (await getRoom(ctx.code))?.players.map((p) => p.name) ?? [];
+  await addPlayer(ctx.code, randomBotName(taken), true, randomPersonality());
+  return boardReply(ctx.code, ctx.player);
+});
+
+const removeAction = withSeat(async (ctx) => {
+  const denied = hostGuard(ctx, true);
+  if (denied) return denied;
+  await removePlayer(ctx.code, (ctx.form.id ?? "").trim());
+  return boardReply(ctx.code, ctx.player);
+});
+
+const timerAction = withSeat(async (ctx) => {
+  const denied = hostGuard(ctx, true);
+  if (denied) return denied;
+  const seconds = Number.parseInt(ctx.form.seconds ?? "");
+  if ([0, 60, 90, 120].includes(seconds)) await setTimer(ctx.code, seconds);
+  return boardReply(ctx.code, ctx.player);
+});
+
+const againAction = withSeat(async (ctx) => {
+  const denied = hostGuard(ctx);
+  if (denied) return denied;
+  await resetGame(ctx.code);
+  return boardReply(ctx.code, ctx.player);
+});
+
+// ---------------------------------------------------------------------------
+// Routes
+// ---------------------------------------------------------------------------
+
 export default cascade(
   byPattern(
     "/",
     byMethod({
       GET: () => renderHtmlResponse(LandingPage()),
-    }),
-  ),
-  byPattern(
-    "/style.css",
-    byMethod({
-      GET: async () => {
-        const css = (await import("../style.css", { with: { type: "text" } })).default;
-        return ok(css, {
-          "content-type": "text/css; charset=utf-8",
-          "cache-control": "no-cache",
-        });
-      },
     }),
   ),
   // --- create / join (plain form posts with redirects) ---
@@ -173,12 +213,14 @@ export default cascade(
       },
     }),
   ),
-  // TODO: wrap in an interceptor that check the player is in the room
-  byPattern(
-    `${ROOM}/:action([a-z]+)`,
-    byMethod({
-      // TODO: split actions into separate routes
-      POST: roomAction,
-    }),
-  ),
+  // --- game actions (one route per action; withSeat does the seat auth) ---
+  byPattern(`${ROOM}/start`, byMethod({ POST: startAction })),
+  byPattern(`${ROOM}/answer`, byMethod({ POST: answerAction })),
+  byPattern(`${ROOM}/reject`, byMethod({ POST: rejectAction })),
+  byPattern(`${ROOM}/next`, byMethod({ POST: nextAction })),
+  byPattern(`${ROOM}/bot`, byMethod({ POST: botAction })),
+  byPattern(`${ROOM}/remove`, byMethod({ POST: removeAction })),
+  byPattern(`${ROOM}/timer`, byMethod({ POST: timerAction })),
+  byPattern(`${ROOM}/again`, byMethod({ POST: againAction })),
+  interceptResponse(staticRoute("/", import.meta.resolve("../public")), skip(405)),
 );
