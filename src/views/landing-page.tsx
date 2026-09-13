@@ -31,7 +31,7 @@ function Heading() {
 
 function CreateRoomCard() {
   return (
-    <form class="card" method="post" action="/rooms">
+    <form class="card" method="post" action="/rooms" hx-boost="true">
       <h2>Create a room</h2>
       <input
         type="text"
@@ -48,7 +48,7 @@ function CreateRoomCard() {
 
 function JoinRoomCard() {
   return (
-    <form class="card" method="post" action="/rooms/join">
+    <form class="card" method="post" action="/rooms/join" hx-boost="true">
       <h2>Join a room</h2>
       <input
         type="text"

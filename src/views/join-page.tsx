@@ -4,7 +4,7 @@ export function JoinPage(props: { code: string; error?: string }) {
   return (
     <Page title="Join room">
       <h1>🐮 Join room</h1>
-      <form class="card" method="post" action={`/rooms/${props.code}/join`}>
+      <form class="card" method="post" action={`/rooms/${props.code}/join`} hx-boost="true">
         <div class="big-code">{props.code}</div>
         <input
           type="text"

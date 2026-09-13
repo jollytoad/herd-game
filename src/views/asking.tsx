@@ -22,7 +22,7 @@ export function Asking(props: { room: Room; player: Player }) {
       </div>
     )
     : (
-      <form {...postProps(room.code, "answer")} hx-disable="find button">
+      <form {...postProps(room.code, "answer")} hx-disable="find button, find textarea">
         <textarea
           name="answer"
           maxlength="120"

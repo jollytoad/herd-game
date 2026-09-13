@@ -10,7 +10,7 @@ export function RoomPage(props: { room: Room; player: Player }) {
   // preserving the node identity the connection targets (and any in-progress
   // typing during the 1s asking-phase refreshes).
   return (
-    <Page title={`${GAME_NAME} · ${room.code}`} htmx sseCode={room.code}>
+    <Page title={`${GAME_NAME} · ${room.code}`} sseCode={room.code}>
       <div
         hx-sse:connect={`/rooms/${room.code}/events`}
         hx-target="find #board"

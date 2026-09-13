@@ -137,9 +137,27 @@ textarea:focus {
   opacity: 0.45;
   cursor: not-allowed;
 }
-.btn.htmx-request {
-  opacity: 0.5;
+/* busy state: htmx adds .htmx-request to the in-flight element (the button
+   itself, or the form for submits) — dim it, block repeat clicks, and append
+   a mini spinner */
+.btn.htmx-request,
+form.htmx-request .btn,
+.x.htmx-request {
+  opacity: 0.55;
   pointer-events: none;
+}
+.btn.htmx-request::after,
+form.htmx-request .btn::after {
+  content: "";
+  display: inline-block;
+  width: 0.85em;
+  height: 0.85em;
+  margin-left: 0.5em;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  vertical-align: -0.12em;
+  animation: spin 0.7s linear infinite;
 }
 .btn.primary {
   background: var(--pink);
