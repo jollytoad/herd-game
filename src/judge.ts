@@ -3,12 +3,9 @@
  *  Every LLM path has a deterministic fallback so the game never stalls. */
 
 import { z } from "zod";
-import { type Span, SpanStatusCode, trace } from "@opentelemetry/api";
 import type { Room } from "./rooms.ts";
 import { GAME_NAME } from "./brand.ts";
 import { chat, llmEnabled, type Msg, parseJsonLoose } from "./llm.ts";
-
-const tracer = trace.getTracer("herd-intelligence.judge");
 
 // ---------------------------------------------------------------------------
 // Rules text — this IS the rulebook the judge reasons from
@@ -119,33 +116,7 @@ const MOCK_COMMENTARY = [
 ];
 
 export function judgeRound(room: Room): Promise<Verdict> {
-  return tracer.startActiveSpan(
-    "judge.round",
-    {
-      attributes: {
-        "room.code": room.code,
-        "judge.round": room.round,
-        "judge.players": room.players.length,
-      },
-    },
-    async (span) => {
-      try {
-        const v = llmEnabled ? await judgeRoundLlm(room, span) : mockJudge(room);
-        span.setAttributes({
-          "judge.source": llmEnabled ? "llm" : "mock",
-          "judge.herd_found": v.herd_answer !== null,
-          "judge.matched": v.matched_players.length,
-        });
-        return v;
-      } catch (err) {
-        span.recordException(err as Error);
-        span.setStatus({ code: SpanStatusCode.ERROR, message: (err as Error).message });
-        throw err;
-      } finally {
-        span.end();
-      }
-    },
-  );
+  return llmEnabled ? judgeRoundLlm(room) : Promise.resolve(mockJudge(room));
 }
 
 function mockJudge(room: Room): Verdict {
@@ -158,7 +129,7 @@ function mockJudge(room: Room): Verdict {
   };
 }
 
-async function judgeRoundLlm(room: Room, span: Span): Promise<Verdict> {
+async function judgeRoundLlm(room: Room): Promise<Verdict> {
   const messages: Msg[] = [
     { role: "system", content: JUDGE_RULES },
     { role: "user", content: judgeUserPrompt(room) },
@@ -175,7 +146,6 @@ async function judgeRoundLlm(room: Room, span: Span): Promise<Verdict> {
       if (parsed.success) {
         const problem = validateVerdict(parsed.data, room);
         if (!problem) {
-          span.setAttribute("judge.attempts", attempt);
           return {
             ...parsed.data,
             matched_players: [...new Set(parsed.data.matched_players)],
@@ -198,7 +168,6 @@ async function judgeRoundLlm(room: Room, span: Span): Promise<Verdict> {
   }
 
   console.error("judge fell back to deterministic majority for room", room.code);
-  span.setAttribute("judge.source", "fallback");
   return fallbackVerdict(room);
 }
 
@@ -244,39 +213,23 @@ function shuffle<T>(arr: T[]): T[] {
   return out;
 }
 
-export function generateQuestions(n = 12): Promise<string[]> {
-  return tracer.startActiveSpan(
-    "judge.generate_questions",
-    async (span) => {
-      if (!llmEnabled) {
-        const mock = shuffle(MOCK_QUESTIONS).slice(0, n);
-        span.setAttribute("judge.source", "mock");
-        span.end();
-        return mock;
-      }
-      try {
-        const raw = await chat(
-          [
-            { role: "system", content: QUESTION_RULES },
-            { role: "user", content: `Generate ${n} questions.` },
-          ],
-          { json: true, temperature: 1.0 },
-        );
-        const data = z.object({ questions: z.array(z.string().min(5).max(200)).min(1) })
-          .parse(parseJsonLoose(raw));
-        span.setAttribute("judge.questions", data.questions.length);
-        return data.questions;
-      } catch (err) {
-        console.error("question generation failed, using fallback deck:", err);
-        span.setAttribute("judge.source", "fallback");
-        span.recordException(err as Error);
-        const mock = shuffle(MOCK_QUESTIONS).slice(0, n);
-        return mock;
-      } finally {
-        span.end();
-      }
-    },
-  );
+export async function generateQuestions(n = 12): Promise<string[]> {
+  if (!llmEnabled) return shuffle(MOCK_QUESTIONS).slice(0, n);
+  try {
+    const raw = await chat(
+      [
+        { role: "system", content: QUESTION_RULES },
+        { role: "user", content: `Generate ${n} questions.` },
+      ],
+      { json: true, temperature: 1.0 },
+    );
+    const data = z.object({ questions: z.array(z.string().min(5).max(200)).min(1) })
+      .parse(parseJsonLoose(raw));
+    return data.questions;
+  } catch (err) {
+    console.error("question generation failed, using fallback deck:", err);
+    return shuffle(MOCK_QUESTIONS).slice(0, n);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -296,51 +249,38 @@ const BOT_FALLBACK_ANSWERS = [
   "netflix",
 ];
 
-export function botAnswers(
+export async function botAnswers(
   question: string,
   bots: { id: string; personality: string }[],
 ): Promise<Record<string, string>> {
-  if (bots.length === 0) return Promise.resolve({});
-  return tracer.startActiveSpan(
-    "judge.bot_answers",
-    { attributes: { "judge.bots": bots.length } },
-    async (span) => {
-      if (!llmEnabled) {
-        span.setAttribute("judge.source", "mock");
-        span.end();
-        return fallbackBotAnswers(bots);
-      }
-      try {
-        const roster = bots.map((b) => `- ${b.id}: you are ${b.personality}`).join("\n");
-        const raw = await chat(
-          [
-            {
-              role: "system",
-              content:
-                `You are several players in a round of the party game "${GAME_NAME}". Each player wants to match the herd: give the answer a typical group of friends would actually give, filtered through that player's personality. One short answer each (max 4 words). Respond with ONLY JSON: {"answers": [{"id": "...", "answer": "..."}]}`,
-            },
-            { role: "user", content: `Prompt: ${JSON.stringify(question)}\n\nPlayers:\n${roster}` },
-          ],
-          { json: true, temperature: 0.9, maxTokens: 2048 },
-        );
-        const data = z.object({
-          answers: z.array(z.object({ id: z.string(), answer: z.string().min(1).max(80) })).min(1),
-        }).parse(parseJsonLoose(raw));
-        const out: Record<string, string> = {};
-        for (const a of data.answers) {
-          if (bots.some((b) => b.id === a.id)) out[a.id] = a.answer;
-        }
-        const missing = fallbackBotAnswers(bots.filter((b) => !out[b.id]));
-        return { ...out, ...missing };
-      } catch (err) {
-        console.error("bot answers failed, using fallback:", err);
-        span.recordException(err as Error);
-        return fallbackBotAnswers(bots);
-      } finally {
-        span.end();
-      }
-    },
-  );
+  if (bots.length === 0) return {};
+  if (!llmEnabled) return fallbackBotAnswers(bots);
+  try {
+    const roster = bots.map((b) => `- ${b.id}: you are ${b.personality}`).join("\n");
+    const raw = await chat(
+      [
+        {
+          role: "system",
+          content:
+            `You are several players in a round of the party game "${GAME_NAME}". Each player wants to match the herd: give the answer a typical group of friends would actually give, filtered through that player's personality. One short answer each (max 4 words). Respond with ONLY JSON: {"answers": [{"id": "...", "answer": "..."}]}`,
+        },
+        { role: "user", content: `Prompt: ${JSON.stringify(question)}\n\nPlayers:\n${roster}` },
+      ],
+      { json: true, temperature: 0.9, maxTokens: 2048 },
+    );
+    const data = z.object({
+      answers: z.array(z.object({ id: z.string(), answer: z.string().min(1).max(80) })).min(1),
+    }).parse(parseJsonLoose(raw));
+    const out: Record<string, string> = {};
+    for (const a of data.answers) {
+      if (bots.some((b) => b.id === a.id)) out[a.id] = a.answer;
+    }
+    const missing = fallbackBotAnswers(bots.filter((b) => !out[b.id]));
+    return { ...out, ...missing };
+  } catch (err) {
+    console.error("bot answers failed, using fallback:", err);
+    return fallbackBotAnswers(bots);
+  }
 }
 
 function fallbackBotAnswers(bots: { id: string }[]): Record<string, string> {

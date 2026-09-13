@@ -23,25 +23,6 @@ mode**: canned question deck, deterministic exact-match judge, dumb bots — use
 | `LLM_MODEL`       | `gpt-oss:120b`         | model for judging, questions, and bots |
 | `PORT`            | `8000`                 | listen port                            |
 
-## OpenTelemetry (dev)
-
-Deno's built-in OTel integration is enabled in dev tasks via `OTEL_DENO=true`:
-
-- `deno task dev` — console exporter: spans, metrics and logs print to stderr. Zero infrastructure.
-- `deno task dev:otlp` — exports OTLP to `localhost:4318` (override with
-  `OTEL_EXPORTER_OTLP_ENDPOINT`). Pair with `deno task otel`, which runs the Grafana LGTM stack in
-  Docker (dashboard at `http://localhost:3000`, login `admin`/`admin`).
-- `deno task start` (prod) has telemetry disabled.
-
-What you get:
-
-- **Auto-instrumented**: a `Server` span per HTTP request, `Client` spans for every outbound `fetch`
-  (i.e. every LLM call), plus runtime metrics and logs.
-- **Custom spans** (via `npm:@opentelemetry/api`, a no-op in prod): `game.draw_question` →
-  `judge.generate_questions` / `judge.round` → `llm.chat`, with attributes for model, judge
-  attempts, herd-found, winner count and room/round — and recorded exceptions on retry/fallback, so
-  the agent loop's failed attempts show up as exception events on the spans.
-
 ## Rules implemented (variants agreed)
 
 - 3–12 players (bots allowed, LLM-personality driven).

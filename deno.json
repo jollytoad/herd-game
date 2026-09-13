@@ -5,16 +5,8 @@
   ],
   "tasks": {
     "dev": {
-      "description": "Dev server with OpenTelemetry (console exporter \u2014 spans/metrics/logs print to stderr)",
-      "command": "OTEL_DENO=true deno run --allow-net --allow-env=PORT,OLLAMA_API_KEY,OLLAMA_BASE_URL,LLM_MODEL --allow-read=. --env-file --watch main.ts"
-    },
-    "dev:otlp": {
-      "description": "Dev server exporting OTLP to a collector (default localhost:4318) \u2014 pair with `deno task otel`",
-      "command": "OTEL_DENO=true deno run --allow-net --allow-read=. --allow-env=PORT,OLLAMA_API_KEY,OLLAMA_BASE_URL,LLM_MODEL,OTEL_EXPORTER_OTLP_ENDPOINT,OTEL_EXPORTER_OTLP_PROTOCOL,OTEL_EXPORTER_OTLP_HEADERS --env-file --watch main.ts"
-    },
-    "otel": {
-      "description": "Local LGTM stack (Grafana :3000 admin/admin, Loki, Tempo, Prometheus) + OTLP :4318",
-      "command": "docker run --name lgtm -p 3000:3000 -p 4317:4317 -p 4318:4318 --rm -ti docker.io/grafana/otel-lgtm:latest"
+      "description": "Dev server with --watch and .env loading",
+      "command": "deno run --allow-net --allow-env=PORT,OLLAMA_API_KEY,OLLAMA_BASE_URL,LLM_MODEL --allow-read=. --env-file --watch main.ts"
     },
     "start": "deno run --allow-net --allow-env=PORT,OLLAMA_API_KEY,OLLAMA_BASE_URL,LLM_MODEL main.ts",
     "check": "deno check main.ts",
@@ -33,7 +25,6 @@
     "@http/response": "jsr:@http/response@^0.30.0",
     "@http/route": "jsr:@http/route@^0.30.0",
     "@http/token-stream": "jsr:@http/token-stream@^0.11.0",
-    "@opentelemetry/api": "npm:@opentelemetry/api@^1.9.1",
     "@std/http": "jsr:@std/http@^1.1.3",
     "@std/media-types": "jsr:@std/media-types@^1.1.0",
     "zod": "jsr:@zod/zod@4.6.2"

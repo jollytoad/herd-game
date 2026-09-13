@@ -8,7 +8,6 @@
  *  revealed 1–5s in; until prepared, bots simply haven't answered yet. Deck
  *  top-ups also run in the background unless the deck is truly empty. */
 
-import { trace } from "@opentelemetry/api";
 import {
   BOT_NAMES,
   getRoom,
@@ -87,53 +86,41 @@ async function precomputeBotAnswers(code: string, room: Room): Promise<void> {
 /** Flip to the next question (lobby -> asking, or results/reject -> asking).
  *  Returns after the flip; LLM work (deck top-up, bot answers) runs in the
  *  background. */
-export function drawQuestion(code: string): Promise<Room | null> {
-  const tracer = trace.getTracer("herd-intelligence.game");
-  return tracer.startActiveSpan(
-    "game.draw_question",
-    { attributes: { "room.code": code } },
-    async (span) => {
-      try {
-        // First flip ever may have an empty deck: we need a question now, so
-        // this one LLM call blocks. Later flips only background-top-up.
-        let room = await getRoom(code);
-        if (room && room.deck.length === 0) {
-          const questions = await generateQuestions(DECK_TOPUP);
-          await updateRoom(code, (r) => {
-            r.deck.push(...questions);
-          });
-        } else if (room && room.deck.length < 3) {
-          topUpDeckBackground(code);
-        }
+export async function drawQuestion(code: string): Promise<Room | null> {
+  // First flip ever may have an empty deck: we need a question now, so
+  // this one LLM call blocks. Later flips only background-top-up.
+  let room = await getRoom(code);
+  if (room && room.deck.length === 0) {
+    const questions = await generateQuestions(DECK_TOPUP);
+    await updateRoom(code, (r) => {
+      r.deck.push(...questions);
+    });
+  } else if (room && room.deck.length < 3) {
+    topUpDeckBackground(code);
+  }
 
-        room = await updateRoom(code, (r) => {
-          r.round += 1;
-          r.question = r.deck.shift() ?? "Name something everyone in this room has in common.";
-          r.phase = "asking";
-          r.answers = {};
-          r.rejects = [];
-          r.lastResult = null;
-          r.winners = [];
-          r.judgingToken = null;
-          r.deadline = r.timerSeconds > 0 ? Date.now() + r.timerSeconds * 1000 : null;
-          scheduleBots(r);
-        });
-        if (!room) return room;
-        span.setAttributes({ "game.round": room.round, "game.deck_left": room.deck.length });
+  room = await updateRoom(code, (r) => {
+    r.round += 1;
+    r.question = r.deck.shift() ?? "Name something everyone in this room has in common.";
+    r.phase = "asking";
+    r.answers = {};
+    r.rejects = [];
+    r.lastResult = null;
+    r.winners = [];
+    r.judgingToken = null;
+    r.deadline = r.timerSeconds > 0 ? Date.now() + r.timerSeconds * 1000 : null;
+    scheduleBots(r);
+  });
+  if (!room) return room;
 
-        // Precompute bot answers off the critical path; tickRoom reveals them
-        // once prepared (1–5s in, LLM latency permitting).
-        background(
-          precomputeBotAnswers(code, room).catch((err) =>
-            console.error("background bot answer generation failed:", err)
-          ),
-        );
-        return await getRoom(code);
-      } finally {
-        span.end();
-      }
-    },
+  // Precompute bot answers off the critical path; tickRoom reveals them
+  // once prepared (1–5s in, LLM latency permitting).
+  background(
+    precomputeBotAnswers(code, room).catch((err) =>
+      console.error("background bot answer generation failed:", err)
+    ),
   );
+  return await getRoom(code);
 }
 
 // ---------------------------------------------------------------------------
@@ -169,67 +156,48 @@ export async function maybeEndRound(code: string): Promise<void> {
 
 /** Run the LLM judge and apply the verdict. Only called by the claimer. */
 export async function adjudicate(code: string): Promise<void> {
-  const tracer = trace.getTracer("herd-intelligence.game");
-  await tracer.startActiveSpan(
-    "game.adjudicate",
-    { attributes: { "room.code": code } },
-    async (span) => {
-      try {
-        const room = await getRoom(code);
-        if (!room || room.phase !== "judging" || !room.question) {
-          span.setAttribute("game.skipped", true);
-          return;
-        }
-        span.setAttribute("game.round", room.round);
+  const room = await getRoom(code);
+  if (!room || room.phase !== "judging" || !room.question) return;
 
-        const verdict = await judgeRound(room);
-        span.setAttribute("judge.herd_found", verdict.herd_answer !== null);
+  const verdict = await judgeRound(room);
 
-        let winnerCount = 0;
-        await updateRoom(code, (r) => {
-          if (r.phase !== "judging") return;
-          const matched = new Set(verdict.matched_players);
-          for (const p of r.players) {
-            if (matched.has(p.id)) {
-              p.cows += 1;
-              p.pinkCow = false; // matching the herd sheds the pink cow
-            }
-          }
-          // Only ONE pink cow exists: it goes to a player solely when they are
-          // the ONLY player not in the herd. Existing holders otherwise keep it.
-          const missed = r.players.filter((p) => !matched.has(p.id));
-          if (verdict.herd_answer !== null && missed.length === 1) {
-            missed[0].pinkCow = true;
-          }
-          r.lastResult = {
-            herd: verdict.herd_answer,
-            commentary: verdict.commentary,
-            answers: r.players.map((p) => ({
-              name: p.name,
-              answer: r.answers[p.id] ?? "(no answer)",
-              inHerd: matched.has(p.id),
-              holdsPinkCow: p.pinkCow,
-            })),
-          };
-          r.log.unshift({ round: r.round, question: r.question ?? "", herd: verdict.herd_answer });
-          r.log = r.log.slice(0, 20);
-          r.winners = r.players.filter((p) => p.cows >= WIN_COWS && !p.pinkCow).map((p) => p.id);
-          r.phase = r.winners.length > 0 ? "gameover" : "results";
-          r.question = null;
-          r.answers = {};
-          r.rejects = [];
-          r.deadline = null;
-          r.botDue = {};
-          r.botPrepared = {};
-          r.judgingToken = null;
-          winnerCount = r.winners.length;
-        });
-        span.setAttribute("game.winners", winnerCount);
-      } finally {
-        span.end();
+  await updateRoom(code, (r) => {
+    if (r.phase !== "judging") return;
+    const matched = new Set(verdict.matched_players);
+    for (const p of r.players) {
+      if (matched.has(p.id)) {
+        p.cows += 1;
+        p.pinkCow = false; // matching the herd sheds the pink cow
       }
-    },
-  );
+    }
+    // Only ONE pink cow exists: it goes to a player solely when they are
+    // the ONLY player not in the herd. Existing holders otherwise keep it.
+    const missed = r.players.filter((p) => !matched.has(p.id));
+    if (verdict.herd_answer !== null && missed.length === 1) {
+      missed[0].pinkCow = true;
+    }
+    r.lastResult = {
+      herd: verdict.herd_answer,
+      commentary: verdict.commentary,
+      answers: r.players.map((p) => ({
+        name: p.name,
+        answer: r.answers[p.id] ?? "(no answer)",
+        inHerd: matched.has(p.id),
+        holdsPinkCow: p.pinkCow,
+      })),
+    };
+    r.log.unshift({ round: r.round, question: r.question ?? "", herd: verdict.herd_answer });
+    r.log = r.log.slice(0, 20);
+    r.winners = r.players.filter((p) => p.cows >= WIN_COWS && !p.pinkCow).map((p) => p.id);
+    r.phase = r.winners.length > 0 ? "gameover" : "results";
+    r.question = null;
+    r.answers = {};
+    r.rejects = [];
+    r.deadline = null;
+    r.botDue = {};
+    r.botPrepared = {};
+    r.judgingToken = null;
+  });
 }
 
 // ---------------------------------------------------------------------------

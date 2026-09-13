@@ -23,9 +23,7 @@
     "jsr:@std/net@^1.0.6": "1.0.6",
     "jsr:@std/path@^1.1.6": "1.1.6",
     "jsr:@std/streams@^1.1.2": "1.1.2",
-    "jsr:@zod/zod@4.6.2": "4.6.2",
-    "npm:@opentelemetry/api@*": "1.9.1",
-    "npm:@opentelemetry/api@^1.9.1": "1.9.1"
+    "jsr:@zod/zod@4.6.2": "4.6.2"
   },
   "jsr": {
     "@http/fs@0.30.0": {
@@ -151,11 +149,6 @@
       "integrity": "22afdf3dabb5e8e38e3448e7669d81ad1b2d754c31fa0bb9aa356f41fc66c0e7"
     }
   },
-  "npm": {
-    "@opentelemetry/api@1.9.1": {
-      "integrity": "sha512-gLyJlPHPZYdAk1JENA9LeHejZe1Ti77/pTeFm/nMXmQH/HFZlcS/O2XJB+L8fkbrNSqhdtlvjBVjxwUYanNH5Q=="
-    }
-  },
   "workspace": {
     "dependencies": [
       "jsr:@http/host-deno-local@0.30",
@@ -168,8 +161,7 @@
       "jsr:@http/token-stream@0.11",
       "jsr:@std/http@^1.1.3",
       "jsr:@std/media-types@^1.1.0",
-      "jsr:@zod/zod@4.6.2",
-      "npm:@opentelemetry/api@^1.9.1"
+      "jsr:@zod/zod@4.6.2"
     ]
   }
 }

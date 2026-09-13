@@ -14,34 +14,7 @@ export const llmEnabled = API_KEY.length > 0;
 
 const TIMEOUT_MS = 45_000;
 
-import { SpanStatusCode, trace } from "@opentelemetry/api";
-
-const tracer = trace.getTracer("herd-intelligence.llm");
-
-export function chat(
-  messages: Msg[],
-  opts: { json?: boolean; temperature?: number; maxTokens?: number } = {},
-): Promise<string> {
-  return tracer.startActiveSpan(
-    "llm.chat",
-    { attributes: { "llm.model": LLM_MODEL } },
-    async (span) => {
-      try {
-        const text = await doChat(messages, opts);
-        span.setAttribute("llm.response.chars", text.length);
-        return text;
-      } catch (err) {
-        span.recordException(err as Error);
-        span.setStatus({ code: SpanStatusCode.ERROR, message: (err as Error).message });
-        throw err;
-      } finally {
-        span.end();
-      }
-    },
-  );
-}
-
-async function doChat(
+export async function chat(
   messages: Msg[],
   opts: { json?: boolean; temperature?: number; maxTokens?: number } = {},
 ): Promise<string> {
