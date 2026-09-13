@@ -18,6 +18,23 @@ export async function chat(
   messages: Msg[],
   opts: { json?: boolean; temperature?: number; maxTokens?: number } = {},
 ): Promise<string> {
+  const started = Date.now();
+  console.debug(`[llm] → ${LLM_MODEL}`);
+  for (const m of messages) console.debug(`[llm]   ${m.role}: ${m.content}`);
+  try {
+    const content = await sendChat(messages, opts);
+    console.debug(`[llm] ← ${Date.now() - started}ms: ${content}`);
+    return content;
+  } catch (err) {
+    console.debug(`[llm] ✗ ${Date.now() - started}ms:`, err);
+    throw err;
+  }
+}
+
+async function sendChat(
+  messages: Msg[],
+  opts: { json?: boolean; temperature?: number; maxTokens?: number } = {},
+): Promise<string> {
   // Note: no `think` field — models use their default. (glm-5.3-flash thinks
   // by default; forcing think:false makes it leak reasoning into content.)
   const body: Record<string, unknown> = {
