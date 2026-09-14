@@ -9,6 +9,8 @@ referee/question-writer powered by the [Ollama Cloud](https://docs.ollama.com/cl
 ```sh
 deno task dev        # or: deno task start
 # → http://localhost:8000
+
+deno task gen        # regenerate src/routes.ts after adding/moving route files
 ```
 
 Requires Deno ≥ 2 (`pkgx deno` works too). With no `OLLAMA_API_KEY` set, the game runs in **mock
@@ -41,9 +43,11 @@ mode**: canned question deck, deterministic exact-match judge, dumb bots — use
 
 ```
 main.ts            Deno.serve entry
-src/routes.ts      route manifest: URL pattern → lazy import of its route module
+src/routes.ts      GENERATED route manifest — run `deno task gen` after adding/moving
+                   route files (do not edit by hand)
 src/routes/        file-based routing — folders/files mirror URL paths
-                   ([code] = :code param; each module exports GET/POST handlers,
+                   ([code] = :code param, index = the parent path, `_`-prefixed
+                   files are not routes; each module exports GET/POST handlers,
                    e.g. src/routes/rooms/[code]/answer.ts → POST /rooms/:code/answer)
 src/rooms.ts       Types + Deno KV storage (optimistic-concurrency updates)
 src/game.ts        Phase machine, lazy timers, bot scheduling, adjudication

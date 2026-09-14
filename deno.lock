@@ -1,7 +1,11 @@
 {
   "version": "5",
   "specifiers": {
+    "jsr:@dprint/formatter@~0.5.1": "0.5.1",
+    "jsr:@http/discovery@0.30": "0.30.0",
+    "jsr:@http/discovery@0.30.0": "0.30.0",
     "jsr:@http/fs@0.30": "0.30.0",
+    "jsr:@http/generate@0.30.0": "0.30.0",
     "jsr:@http/host-deno-local@0.30": "0.30.0",
     "jsr:@http/html-stream@0.11": "0.11.0",
     "jsr:@http/interceptor@0.30": "0.30.0",
@@ -26,6 +30,16 @@
     "jsr:@zod/zod@4.6.2": "4.6.2"
   },
   "jsr": {
+    "@dprint/formatter@0.5.1": {
+      "integrity": "082007b652f6d6b9046b87b9ff643380d82ebb4deb4844b0b3486b5e2db2ce80"
+    },
+    "@http/discovery@0.30.0": {
+      "integrity": "8a8381fd7e3bdda552c8e705563aed03836abf7698837f668760edb6be6d8952",
+      "dependencies": [
+        "jsr:@http/route",
+        "jsr:@std/path"
+      ]
+    },
     "@http/fs@0.30.0": {
       "integrity": "09c6c4fdef45c00adeb3b22baf94bdf53eb461ea7e8b2770c3fa4c8098f6612c",
       "dependencies": [
@@ -34,6 +48,14 @@
         "jsr:@std/media-types",
         "jsr:@std/path",
         "jsr:@std/streams"
+      ]
+    },
+    "@http/generate@0.30.0": {
+      "integrity": "4112c569455757cdb0d335d45ee710942a722affee9d9cda8573e9b0ef2b64bb",
+      "dependencies": [
+        "jsr:@dprint/formatter",
+        "jsr:@http/discovery@0.30",
+        "jsr:@std/path"
       ]
     },
     "@http/host-deno-local@0.30.0": {
@@ -151,7 +173,9 @@
   },
   "workspace": {
     "dependencies": [
+      "jsr:@http/discovery@0.30.0",
       "jsr:@http/fs@0.30",
+      "jsr:@http/generate@0.30.0",
       "jsr:@http/host-deno-local@0.30",
       "jsr:@http/html-stream@0.11",
       "jsr:@http/interceptor@0.30",

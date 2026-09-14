@@ -9,6 +9,7 @@
       "command": "deno run --allow-net --allow-env=PORT,OLLAMA_API_KEY,OLLAMA_BASE_URL,LLM_MODEL --allow-read=. --env-file --watch main.ts"
     },
     "start": "deno run --allow-net --allow-env=PORT,OLLAMA_API_KEY,OLLAMA_BASE_URL,LLM_MODEL main.ts",
+    "gen": "deno run --allow-net=jsr.io,plugins.dprint.dev --allow-read=. --allow-write=src/routes.ts --unstable-kv --allow-env=OLLAMA_API_KEY,OLLAMA_BASE_URL,LLM_MODEL scripts/gen.ts",
     "check": "deno check main.ts",
     "ci": "deno fmt --check && deno lint && deno check main.ts",
     "ok": "deno fmt && deno lint && deno check main.ts"
@@ -18,6 +19,8 @@
   ],
   "imports": {
     "@http/fs": "jsr:@http/fs@^0.30.0",
+    "@http/discovery": "jsr:@http/discovery@0.30.0",
+    "@http/generate": "jsr:@http/generate@0.30.0",
     "@http/host-deno-local": "jsr:@http/host-deno-local@^0.30.0",
     "@http/html-stream": "jsr:@http/html-stream@^0.11.0",
     "@http/interceptor": "jsr:@http/interceptor@^0.30.0",
