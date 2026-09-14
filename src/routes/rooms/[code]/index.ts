@@ -5,7 +5,12 @@ import { RoomPage } from "../../../views/room-page.tsx";
 
 export const GET = async (req: Request, match: URLPatternResult) => {
   const code = match.pathname.groups.code!;
-  const session = await auth(req, code);
-  if (!session) return html(JoinPage({ code }));
-  return html(RoomPage({ room: session.room, player: session.player }));
+  try {
+    const { room, player } = await auth(req, code);
+    return html(RoomPage({ room, player }));
+  } catch (err) {
+    // not seated → show the join form; anything else is a real error
+    if (err instanceof Response) return html(JoinPage({ code }));
+    throw err;
+  }
 };

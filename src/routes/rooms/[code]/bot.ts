@@ -12,8 +12,7 @@ function randomPersonality(): string {
 }
 
 export const POST = withSeat(async (_req, ctx) => {
-  const denied = hostGuard(ctx, true);
-  if (denied) return denied;
+  hostGuard(ctx, true); // 403 unless host in the lobby
   const taken = (await getRoom(ctx.code))?.players.map((p) => p.name) ?? [];
   await addPlayer(ctx.code, randomBotName(taken), true, randomPersonality());
   return boardReply(ctx.code, ctx.player);

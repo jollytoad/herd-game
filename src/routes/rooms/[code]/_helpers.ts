@@ -7,12 +7,10 @@ import { html } from "../../../html.ts";
 import { Board } from "../../../views/board-html.tsx";
 import { ErrorPage } from "../../../views/error-page.tsx";
 
-export function notSeated(): Response {
-  return html(ErrorPage({ message: "You're not in that room." }), 403);
-}
-
-export function notHost(): Response {
-  return html(ErrorPage({ message: "Only the host can do that." }), 403);
+/** Guards throw their rejection — catchResponse (main.ts) turns a thrown
+ *  Response into the response of the request. */
+function notHost(): never {
+  throw html(ErrorPage({ message: "Only the host can do that." }), 403);
 }
 
 /** Standard action reply: re-read the room and render the caller's board. */
@@ -40,17 +38,17 @@ export function withSeat<A extends unknown[] = []>(
 ): (req: Request, match: URLPatternResult, ...args: A) => Promise<Response> {
   return async (req, match, ...args) => {
     const code = match.pathname.groups.code!;
-    const session = await auth(req, code);
-    if (!session) return notSeated();
+    const session = await auth(req, code); // throws 403 when not seated
     const form = await getBodyAsObject<Record<string, string>>(req);
     const ctx: ActionCtx = { code, room: session.room, player: session.player, form };
     return handle(req, ctx, ...args);
   };
 }
 
-/** 403 unless the caller is the host (and, with `lobbyOnly`, still in the lobby). */
-export function hostGuard(ctx: ActionCtx, lobbyOnly = false): Response | null {
-  if (ctx.player.id !== ctx.room.hostId) return notHost();
-  if (lobbyOnly && ctx.room.phase !== "lobby") return notHost();
-  return null;
+/** Throws a 403 unless the caller is the host (and, with `lobbyOnly`, still
+ *  in the lobby). */
+export function hostGuard(ctx: ActionCtx, lobbyOnly = false): void {
+  if (ctx.player.id !== ctx.room.hostId || (lobbyOnly && ctx.room.phase !== "lobby")) {
+    notHost();
+  }
 }

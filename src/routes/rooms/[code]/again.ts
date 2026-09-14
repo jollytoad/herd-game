@@ -2,8 +2,7 @@ import { updateRoom } from "../../../rooms.ts";
 import { boardReply, hostGuard, withSeat } from "./_helpers.ts";
 
 export const POST = withSeat(async (_req, ctx) => {
-  const denied = hostGuard(ctx);
-  if (denied) return denied;
+  hostGuard(ctx); // 403 unless host
   await updateRoom(ctx.code, (r) => {
     r.phase = "lobby";
     r.round = 0;
