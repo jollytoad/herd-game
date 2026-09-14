@@ -22,8 +22,9 @@ export function Asking(props: { room: Room; player: Player }) {
       </div>
     )
     : (
-      <form {...postProps(room.code, "answer")} hx-disable="find button, find textarea">
-        <textarea
+      <form {...postProps(room.code, "answer")} hx-disable="find button, find input">
+        <input
+          type="text"
           name="answer"
           maxlength="120"
           placeholder="Your answer… (most people will agree, right?)"

@@ -93,8 +93,7 @@ main {
 }
 
 /* ---------- forms & buttons ---------- */
-input[type="text"],
-textarea {
+input[type="text"] {
   width: 100%;
   background: var(--bg2);
   border: 1px solid #3a3260;
@@ -104,12 +103,7 @@ textarea {
   font: inherit;
   margin: 6px 0;
 }
-textarea {
-  resize: none;
-  min-height: 70px;
-}
-input:focus,
-textarea:focus {
+input:focus {
   outline: 2px solid var(--pink);
   border-color: transparent;
 }
