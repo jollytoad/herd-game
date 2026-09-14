@@ -1,7 +1,7 @@
 import { updateRoom } from "../../../rooms.ts";
 import { boardReply, hostGuard, withSeat } from "./_helpers.ts";
 
-export const POST = withSeat(async (ctx) => {
+export const POST = withSeat(async (_req, ctx) => {
   const denied = hostGuard(ctx);
   if (denied) return denied;
   await updateRoom(ctx.code, (r) => {

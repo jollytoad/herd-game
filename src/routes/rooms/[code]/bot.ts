@@ -11,7 +11,7 @@ function randomPersonality(): string {
   return PERSONALITIES[Math.floor(Math.random() * PERSONALITIES.length)];
 }
 
-export const POST = withSeat(async (ctx) => {
+export const POST = withSeat(async (_req, ctx) => {
   const denied = hostGuard(ctx, true);
   if (denied) return denied;
   const taken = (await getRoom(ctx.code))?.players.map((p) => p.name) ?? [];

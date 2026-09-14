@@ -1,7 +1,7 @@
 import { updateRoom } from "../../../rooms.ts";
 import { boardReply, withSeat } from "./_helpers.ts";
 
-export const POST = withSeat(async ({ code, player, form }) => {
+export const POST = withSeat(async (_req, { code, player, form }) => {
   const answer = ((form.answer ?? "").trim() || "(no answer)").slice(0, 120);
   await updateRoom(code, (r) => {
     if (r.phase === "asking") r.answers[player.id] = answer;

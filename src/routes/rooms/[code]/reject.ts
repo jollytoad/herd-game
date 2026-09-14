@@ -2,7 +2,7 @@ import { drawQuestion } from "../../../game.ts";
 import { getRoom, updateRoom } from "../../../rooms.ts";
 import { boardReply, withSeat } from "./_helpers.ts";
 
-export const POST = withSeat(async ({ code, player }) => {
+export const POST = withSeat(async (_req, { code, player }) => {
   const room = await getRoom(code);
   // only meaningful while a question is on the table, and once per player
   if (room?.phase === "asking" && !room.rejects.includes(player.id)) {
