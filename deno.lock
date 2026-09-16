@@ -6,6 +6,7 @@
     "jsr:@http/discovery@0.30.0": "0.30.0",
     "jsr:@http/fs@0.30": "0.30.0",
     "jsr:@http/generate@0.30.0": "0.30.0",
+    "jsr:@http/host-deno-deploy@0.30": "0.30.0",
     "jsr:@http/host-deno-local@0.30": "0.30.0",
     "jsr:@http/html-stream@0.11": "0.11.0",
     "jsr:@http/interceptor@0.30": "0.30.0",
@@ -57,6 +58,14 @@
         "jsr:@http/discovery@0.30",
         "jsr:@http/route",
         "jsr:@std/path"
+      ]
+    },
+    "@http/host-deno-deploy@0.30.0": {
+      "integrity": "021d1492133bdc7b34e40a7714787760f8a1270e4201effe7865464c80ba8680",
+      "dependencies": [
+        "jsr:@http/interceptor",
+        "jsr:@http/route",
+        "jsr:@std/http"
       ]
     },
     "@http/host-deno-local@0.30.0": {
@@ -174,6 +183,7 @@
       "jsr:@http/discovery@0.30.0",
       "jsr:@http/fs@0.30",
       "jsr:@http/generate@0.30.0",
+      "jsr:@http/host-deno-deploy@0.30",
       "jsr:@http/host-deno-local@0.30",
       "jsr:@http/html-stream@0.11",
       "jsr:@http/interceptor@0.30",

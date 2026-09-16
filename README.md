@@ -18,12 +18,13 @@ mode**: canned question deck, deterministic exact-match judge, dumb bots — use
 
 ## Configuration (env vars)
 
-| var               | default                | purpose                                |
-| ----------------- | ---------------------- | -------------------------------------- |
-| `OLLAMA_API_KEY`  | — (mock mode if unset) | API key for Ollama Cloud               |
-| `OLLAMA_BASE_URL` | `https://ollama.com`   | Ollama-compatible endpoint             |
-| `LLM_MODEL`       | `gpt-oss:120b`         | model for judging, questions, and bots |
-| `PORT`            | `8000`                 | listen port                            |
+| var               | default                | purpose                                              |
+| ----------------- | ---------------------- | ---------------------------------------------------- |
+| `OLLAMA_API_KEY`  | — (mock mode if unset) | API key for Ollama Cloud                             |
+| `OLLAMA_BASE_URL` | `https://ollama.com`   | Ollama-compatible endpoint                           |
+| `LLM_MODEL`       | `gpt-oss:120b`         | model for judging, questions, and bots               |
+| `PORT`            | `8000`                 | listen port                                          |
+| `KV_PREFIX`       | `herd-game`            | namespace for all KV keys (shared Deno Deploy store) |
 
 ## Rules implemented (variants agreed)
 
@@ -81,8 +82,63 @@ public/            static assets (style.css etc.), served via @http/route static
   tick, not `setTimeout`, so no isolate needs to stay alive for the game to progress.
 - `Deno.openKv()` needs `--unstable-kv` locally; on Deploy it's enabled by default. Rooms expire
   after 24h of no writes (KV `expireIn`, refreshed on every update).
-- **Permissions:** env access is scoped to exactly the four variables read (`PORT`,
-  `OLLAMA_API_KEY`, `OLLAMA_BASE_URL`, `LLM_MODEL`). `--allow-net` stays unscoped because the server
-  both listens on `PORT` and makes outbound fetches to whichever LLM gateway `OLLAMA_BASE_URL`
-  points at.
+- **Permissions:** env access is scoped to exactly the five variables read (`PORT`,
+  `OLLAMA_API_KEY`, `OLLAMA_BASE_URL`, `LLM_MODEL`, `KV_PREFIX`). `--allow-net` stays unscoped
+  because the server both listens on `PORT` and makes outbound fetches to whichever LLM gateway
+  `OLLAMA_BASE_URL` points at.
 - `deno task ci` runs the same gates locally as CI: `fmt --check`, `lint`, `check`.
+
+## Deploying to Deno Deploy (manual)
+
+Requires **Deno ≥ 2.4.2** (the `deno deploy` subcommand was added in 2.4) and an organization at
+<https://console.deno.com> (the org slug is the part after `console.deno.com/` in the URL).
+
+### First time — create the app
+
+The app has to exist before you can `deno deploy --prod`. Pick an app name (becomes
+`<app>.deno.dev`) and run:
+
+```sh
+deno deploy create \
+  --org YOUR_ORG --app herd-game \
+  --source local \
+  --runtime-mode dynamic --entrypoint main.ts \
+  --build-timeout 5 --build-memory-limit 1024 --region us
+```
+
+This builds, uploads, deploys, and writes `deploy.org` / `deploy.app` back into `deno.json` so
+future deploys just target the right app. (`--source local` + no `--token` = the CLI uploads from
+the current directory; on first run it opens a browser to authenticate with Deno Deploy.)
+
+### Configure environment variables
+
+Set these on the app (the CLI opens the browser the first time per session to authorize writes):
+
+```sh
+# Secret — hidden after creation, only readable in code
+deno deploy env add OLLAMA_API_KEY "sk-..." --secret
+
+# Plain text
+deno deploy env add OLLAMA_BASE_URL "https://ollama.com"
+deno deploy env add LLM_MODEL       "gpt-oss:120b"
+deno deploy env add KV_PREFIX       "herd-game-prod"
+
+deno deploy env list   # verify
+```
+
+`KV_PREFIX` is namespacing: Deno Deploy gives each environment its own KV store automatically, but
+the prefix is still useful when you later want a second copy of the app (e.g. staging) sharing the
+same Deploy KV region.
+
+### Ship a change
+
+```sh
+deno task ci           # fmt --check, lint, check  (same gates as a CI run)
+deno task deploy       # = deno deploy --prod
+
+# Or a non-prod preview URL first:
+deno task deploy:preview
+```
+
+Logs: `deno deploy logs`. The `--prod` deploy replaces the production deployment atomically — KV
+keys written by the previous version remain readable, so in-flight games survive the rollout.
