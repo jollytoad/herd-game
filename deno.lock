@@ -27,7 +27,7 @@
     "jsr:@std/net@^1.0.6": "1.0.6",
     "jsr:@std/path@^1.1.6": "1.1.6",
     "jsr:@std/streams@^1.1.2": "1.1.2",
-    "jsr:@zod/zod@4.6.2": "4.6.2"
+    "jsr:@zod/zod@4.6.5": "4.6.5"
   },
   "jsr": {
     "@dprint/formatter@0.5.1": {
@@ -55,6 +55,7 @@
       "dependencies": [
         "jsr:@dprint/formatter",
         "jsr:@http/discovery@0.30",
+        "jsr:@http/route",
         "jsr:@std/path"
       ]
     },
@@ -161,14 +162,11 @@
         "jsr:@std/internal"
       ]
     },
-    "@std/streams@1.1.1": {
-      "integrity": "92556d350e537e9dce527a6d08f6f15be3ff65e656079dea69d15252187c7613"
-    },
     "@std/streams@1.1.2": {
       "integrity": "0249bf9b78a999f57032ca4d8e7ccaa57579090242640b35ddc948fbb745d3af"
     },
-    "@zod/zod@4.6.2": {
-      "integrity": "22afdf3dabb5e8e38e3448e7669d81ad1b2d754c31fa0bb9aa356f41fc66c0e7"
+    "@zod/zod@4.6.5": {
+      "integrity": "de9ee54513b84efecbdf2988f5a01eca0e2883be4b5625cf320bc0d6dbbade3e"
     }
   },
   "workspace": {
@@ -186,7 +184,7 @@
       "jsr:@http/token-stream@0.11",
       "jsr:@std/http@^1.1.3",
       "jsr:@std/media-types@^1.1.0",
-      "jsr:@zod/zod@4.6.2"
+      "jsr:@zod/zod@4.6.5"
     ]
   }
 }
