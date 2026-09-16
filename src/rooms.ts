@@ -62,14 +62,23 @@ export interface Room {
 const DAY_MS = 24 * 60 * 60 * 1000;
 const CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 
+/** All KV keys are namespaced under this prefix to avoid colliding with other
+ *  apps sharing the same Deno Deploy KV instance. Override with the
+ *  KV_PREFIX env var (e.g. for staging). */
+const KV_PREFIX = Deno.env.get("KV_PREFIX") ?? "herd-game";
+
 const kv: Deno.Kv = await Deno.openKv();
+
+function roomKey(code: string): Deno.KvKey {
+  return [KV_PREFIX, "rooms", code];
+}
 
 // ---------------------------------------------------------------------------
 // KV primitives (optimistic concurrency via versionstamp checks)
 // ---------------------------------------------------------------------------
 
 export async function getRoom(code: string): Promise<Room | null> {
-  const entry = await kv.get<Room>(["rooms", code]);
+  const entry = await kv.get<Room>(roomKey(code));
   return entry.value ?? null;
 }
 
@@ -81,14 +90,14 @@ export async function updateRoom(
   fn: (room: Room) => void,
 ): Promise<Room | null> {
   for (let attempt = 0; attempt < 10; attempt++) {
-    const entry = await kv.get<Room>(["rooms", code]);
+    const entry = await kv.get<Room>(roomKey(code));
     const room = entry.value;
     if (!room) return null;
     fn(room);
     room.version = entry.value.version + 1;
     const commit = await kv.atomic()
-      .check({ key: ["rooms", code], versionstamp: entry.versionstamp })
-      .set(["rooms", code], room, { expireIn: DAY_MS })
+      .check({ key: roomKey(code), versionstamp: entry.versionstamp })
+      .set(roomKey(code), room, { expireIn: DAY_MS })
       .commit();
     if (commit.ok) return room;
   }
@@ -156,7 +165,7 @@ export async function createRoom(hostName: string): Promise<{ code: string; toke
     log: [],
     winners: [],
   };
-  await kv.set(["rooms", code], room, { expireIn: DAY_MS });
+  await kv.set(roomKey(code), room, { expireIn: DAY_MS });
   return { code, token: host.token };
 }
 
