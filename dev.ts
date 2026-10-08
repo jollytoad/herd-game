@@ -1,4 +1,4 @@
-import init from "@http/host-deno-deploy/init";
+import init from "@http/host-deno-local/init";
 import { catchResponse } from "@http/interceptor/catch-response";
 import handler from "./src/handler.ts";
 

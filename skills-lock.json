@@ -12,6 +12,12 @@
       "sourceType": "github",
       "skillPath": "skills/deno-deploy/SKILL.md",
       "computedHash": "99a0e43734dd70eef348c7e0ef043e127ac280046f06d5bf65a8b0a8ee9a3f1d"
+    },
+    "playwright-bdd": {
+      "source": "vitalets/playwright-bdd",
+      "sourceType": "github",
+      "skillPath": "skills/playwright-bdd/SKILL.md",
+      "computedHash": "db55c68596e2f328b4c08a85c50304a5ff941ad950922582dbf5ea316bc46f08"
     }
   }
 }

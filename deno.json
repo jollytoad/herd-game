@@ -8,14 +8,25 @@
       "description": "Dev server with --watch and .env loading",
       "command": "deno run --allow-net --allow-env=PORT,OLLAMA_API_KEY,OLLAMA_BASE_URL,LLM_MODEL,KV_PREFIX --allow-read=. --env-file --watch dev.ts"
     },
-    "start": "deno run --allow-net --allow-env=PORT,OLLAMA_API_KEY,OLLAMA_BASE_URL,LLM_MODEL,KV_PREFIX main.ts",
+    "start": "deno run --allow-net --allow-env=PORT,OLLAMA_API_KEY,OLLAMA_BASE_URL,LLM_MODEL,KV_PREFIX --allow-read=. main.ts",
     "gen": "deno run --allow-net=jsr.io,plugins.dprint.dev --allow-read=. --allow-write=src/routes.ts --unstable-kv --allow-env=OLLAMA_API_KEY,OLLAMA_BASE_URL,LLM_MODEL scripts/gen.ts",
+    "test:e2e": {
+      "description": "Run the Gherkin/Playwright suite against HERD_BASE_URL (defaults to localhost:8000). Codegen runs first so an edited .feature is never silently skipped. Filter scenarios with BDD_TAGS (a tag expression, applied at generation time); extra args are appended to the playwright call, e.g. --list or --ui",
+      "command": "deno run -A npm:playwright-bdd && deno run -A npm:@playwright/test test"
+    },
+    "test:e2e:list": {
+      "description": "List generated scenarios without running them",
+      "command": "deno run -A npm:playwright-bdd && deno run -A npm:@playwright/test test --list"
+    },
     "check": "deno check main.ts",
     "ci": "deno fmt --check && deno lint && deno check main.ts",
     "ok": "deno fmt && deno lint && deno check main.ts"
   },
   "exclude": [
-    ".agents/"
+    ".agents/",
+    "playwright-bdd-gen/",
+    "test-results/",
+    "playwright-report/"
   ],
   "imports": {
     "@http/fs": "jsr:@http/fs@^0.30.0",
@@ -30,8 +41,11 @@
     "@http/response": "jsr:@http/response@^0.30.0",
     "@http/route": "jsr:@http/route@^0.30.0",
     "@http/token-stream": "jsr:@http/token-stream@^0.11.0",
+    "@playwright/test": "npm:@playwright/test@^1.63.0",
     "@std/http": "jsr:@std/http@^1.1.3",
     "@std/media-types": "jsr:@std/media-types@^1.1.0",
+    "playwright": "npm:playwright@^1.63.0",
+    "playwright-bdd": "npm:playwright-bdd@^9.2.1",
     "zod": "jsr:@zod/zod@4.6.5"
   },
   "compilerOptions": {
