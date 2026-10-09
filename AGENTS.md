@@ -98,6 +98,17 @@ Things that will bite you:
   can only be added in the lobby and their answers aren't controllable.
 - Timer values are only `0 | 60 | 90 | 120`, so timer _expiry_ can't be exercised through the UI
   without waiting a real minute.
+- **Don't detect a settled round with `.herd-banner`.** The asking view reuses that class for its
+  "Locked in" banner, and the host answers in most scenarios, so it matches before the round is
+  judged. Use `.answer-row, .winners, .big-code` (`Game.waitForResult`).
+- **`Given a room of N players` seats the LAST roster name as host** (`Game.fillRoom`). It has to be
+  one of the named players: `maybeEndRound` needs _every_ player to answer, so a host outside the
+  roster leaves the round permanently unresolvable. It is also kept distinct from `dave`, which
+  `bad-question` relies on to put two different rejections on one question.
+- A sole misser is badged `🐷 pink cow`, not `❌ missed` (`views/results.tsx`), so "missed the herd"
+  has to be asserted from the herd membership, never the badge text.
+- `.pinkcow-note` is rendered per viewer but only in the results phase — game over has none.
+- `win-and-reset` plays whole games and carries `@timeout:180000`; the default 30s is not enough.
 
 `playwright-bdd-gen/`, `test-results/`, `playwright-report/` are generated and excluded from
 fmt/lint — keep them out of the repo. `test/` itself is _not_ excluded; it must stay formatted.

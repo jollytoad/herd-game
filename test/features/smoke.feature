@@ -1,4 +1,3 @@
-@skip
 Feature: Smoke
   The narrowest pass over a whole game: a deployed instance loads, seats
   players, runs a round, and reports a result.

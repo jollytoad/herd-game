@@ -33,6 +33,7 @@
     "npm:@playwright/test@^1.63.0": "1.63.0",
     "npm:playwright-bdd@*": "9.2.1_@playwright+test@1.63.0",
     "npm:playwright-bdd@^9.2.1": "9.2.1_@playwright+test@1.63.0",
+    "npm:playwright@*": "1.63.0",
     "npm:playwright@^1.63.0": "1.63.0",
     "npm:skills@*": "1.7.1"
   },

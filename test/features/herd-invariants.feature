@@ -1,4 +1,3 @@
-@skip
 Feature: Herd invariants
   Whatever a judge decides, the rules the server applies stay true. These
   scenarios run against any deploy, including one with a live LLM referee, and

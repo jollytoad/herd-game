@@ -1,4 +1,3 @@
-@skip
 Feature: Lobby
   Players gather in a room before a game starts. The host controls when the
   game begins, and the room refuses anyone who cannot be seated.
@@ -15,7 +14,7 @@ Feature: Lobby
     Given I am the host of a new room
     When "dave" joins
     And "dave" tries to join again
-    Then I see the error "That name is taken."
+    Then "dave" sees the error "That name is taken."
 
   @mock
   Scenario: Only the host sees the host controls
@@ -23,7 +22,7 @@ Feature: Lobby
     When "dave" joins
     Then "dave" waits for the host to start
     And "dave" cannot add a bot
-    But I can start the game
+    But I see the start control
 
   @mock
   Scenario: The host can add a bot to fill the room

@@ -1,4 +1,3 @@
-@skip
 Feature: Identity
   A player is recognised by the cookie their seat sets, scoped to one room.
   That seat follows a refresh and grants nothing anywhere else.
@@ -23,5 +22,5 @@ Feature: Identity
 
   Scenario: A malformed room code never reaches a room
     Given I am on the landing page
-    When I try to join room "NOPE!"
+    When I try to join room "N.P!"
     Then I see the error "That code doesn't look right."

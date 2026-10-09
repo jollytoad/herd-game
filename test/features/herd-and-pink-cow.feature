@@ -1,4 +1,3 @@
-@skip
 Feature: Herd and pink cow
   Each round the group clusters on one answer. Matching it earns a cow and
   sheds the pink cow; missing it alone leaves you holding it.
@@ -20,12 +19,13 @@ Feature: Herd and pink cow
 
   @mock
   Scenario: Two answers tied means no herd and nobody scores
-    Given a room of 3 players with the timer set to no limit
+    Given a room of 4 players with the timer set to no limit
     When I start the game
     And everyone answers:
       | dave  | pizza |
-      | eve   | sushi  |
-      | frank | sushi  |
+      | eve   | pizza |
+      | frank | sushi |
+      | grace | sushi |
     Then there is no herd
     And nobody gained a cow
 

@@ -1,4 +1,3 @@
-@skip
 Feature: Bad question
   Anyone can call a prompt a dud. Enough of the room agreeing throws the
   question away and draws a replacement.
@@ -34,4 +33,4 @@ Feature: Bad question
       | dave  | pizza |
       | eve   | pizza |
       | frank | sushi |
-    Then the host sees the round 1 result
+    Then the host sees the round result

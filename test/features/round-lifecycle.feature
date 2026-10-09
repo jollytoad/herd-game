@@ -1,4 +1,3 @@
-@skip
 Feature: Round lifecycle
   A game is a run of rounds. The host opens each one, everyone answers
   secretly, and the round resolves once no one is left waiting.
