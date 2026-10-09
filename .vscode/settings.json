@@ -1,3 +1,9 @@
 {
-  "deno.enable": true
+  "deno.enable": true,
+  "cucumber.features": [
+    "test/features/*.feature"
+  ],
+  "cucumber.glue": [
+    "test/steps/*.ts"
+  ]
 }

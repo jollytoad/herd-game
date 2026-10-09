@@ -69,8 +69,8 @@ Gherkin + Playwright via `playwright-bdd`. Suites run against a **running deploy
 ```sh
 deno task test:e2e                        # codegen then run
 deno task test:e2e:list                   # list scenarios, run nothing
-BDD_TAGS='@mock' deno task test:e2e       # filter by tag
 deno task test:e2e --list                 # extra args forward to playwright
+deno run -A npm:playwright-bdd --tags @mock   # filter by tag (codegen-time)
 ```
 
 Things that will bite you:
@@ -78,10 +78,14 @@ Things that will bite you:
 - **`defineBddConfig()` returns the generated output dir. Capture it and pass it as `testDir`.**
   Discarding the return value is the easiest way to get a suite that collects nothing.
 - **Tags are a _generation-time_ filter**, not a `playwright test` flag. `playwright test --tags`
-  errors. Use the `BDD_TAGS` env var, read in `playwright.config.ts`.
+  errors; pass `--tags` to `bddgen` instead. Note a var prefixed to `a && b` only reaches the first
+  command, which is why filtering can't ride along on `deno task test:e2e`.
 - **Always run through `deno task test:e2e`, never `playwright test` alone.** `bddgen` exits
   non-zero on a step with no definition and writes no spec — that's what stops a generated no-op
   step from passing vacuously. Bypass codegen and you lose that guard.
+- **A feature awaiting step definitions carries `@skip` on the `Feature:` line.** `bddgen` filters
+  missing-step reporting to non-skipped tests, so a skipped feature neither fails generation nor
+  passes vacuously — it reports as skipped. Remove the tag when you write its steps.
 - Never put a pipe between the two commands: `$?` after `cmd | tail` is `tail`'s exit code, which
   silently hides generation failures.
 - Steps register via `const { Given, When, Then } = createBdd()` — **not** top-level exports and

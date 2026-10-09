@@ -11,7 +11,7 @@
     "start": "deno run --allow-net --allow-env=PORT,OLLAMA_API_KEY,OLLAMA_BASE_URL,LLM_MODEL,KV_PREFIX --allow-read=. main.ts",
     "gen": "deno run --allow-net=jsr.io,plugins.dprint.dev --allow-read=. --allow-write=src/routes.ts --unstable-kv --allow-env=OLLAMA_API_KEY,OLLAMA_BASE_URL,LLM_MODEL scripts/gen.ts",
     "test:e2e": {
-      "description": "Run the Gherkin/Playwright suite against HERD_BASE_URL (defaults to localhost:8000). Codegen runs first so an edited .feature is never silently skipped. Filter scenarios with BDD_TAGS (a tag expression, applied at generation time); extra args are appended to the playwright call, e.g. --list or --ui",
+      "description": "Run the Gherkin/Playwright suite against HERD_BASE_URL (defaults to localhost:8000). Codegen runs first so an edited .feature is never silently skipped; extra args are appended to the playwright call, e.g. --list or --ui",
       "command": "deno run -A npm:playwright-bdd && deno run -A npm:@playwright/test test"
     },
     "test:e2e:list": {
